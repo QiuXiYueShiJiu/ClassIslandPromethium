@@ -1,8 +1,14 @@
+<div align="center">
+
+<img src="icon.png" width="150" alt="Pm钷">
+
 # Pm钷
 
-ClassIsland 综合增强插件。
+**ClassIsland 综合增强插件**
 
-从多个角度把 ClassIsland 变得更好用 —— 小到一个动作，大到一整块界面。
+</div>
+
+---
 
 ## 状态
 
