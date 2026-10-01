@@ -123,7 +123,38 @@ internal static class Program
         Check("纬度往返一致", () => Math.Abs(reloaded.Weather.Latitude - 12.3456) < 1e-9);
         Check("震级往返一致", () => Math.Abs(reloaded.Earthquake.MinMagnitude - 5.5) < 1e-9);
 
-        Section("八、真实接口联调（联网，验证解析而不是猜测）");
+        Section("八、显示模式（同时验证设置变更能否实时生效）");
+        var settings = new BetterWeatherSettings();
+        var vm = new ClassIsland.Promethium.ViewModels.BetterWeatherViewModel(weatherMonitor, store, alerts);
+        vm.AttachSettings(settings);
+        Check("标准模式：位置名/温差/湿度开，风力/体感关",
+            () => vm.ShowLocationNameEffective && vm.ShowDailyRangeEffective
+                  && vm.ShowHumidityEffective && !vm.ShowWindEffective && !vm.ShowFeelsLikeEffective);
+        settings.DisplayMode = WeatherDisplayMode.Detailed;
+        Check("切到详细：五项全开（这一条同时证明改设置会实时生效）",
+            () => vm.ShowLocationNameEffective && vm.ShowDailyRangeEffective && vm.ShowHumidityEffective
+                  && vm.ShowWindEffective && vm.ShowFeelsLikeEffective);
+        settings.DisplayMode = WeatherDisplayMode.Compact;
+        Check("切到紧凑：五项全关",
+            () => !vm.ShowLocationNameEffective && !vm.ShowDailyRangeEffective && !vm.ShowHumidityEffective
+                  && !vm.ShowWindEffective && !vm.ShowFeelsLikeEffective);
+        settings.DisplayMode = WeatherDisplayMode.Custom;
+        settings.ShowWind = true;
+        settings.ShowHumidity = false;
+        Check("自定义模式才听逐项开关",
+            () => vm.ShowWindEffective && !vm.ShowHumidityEffective);
+        Check("下拉框索引映射可用",
+            () => settings.DisplayModeIndex == (int)WeatherDisplayMode.Custom);
+        settings.DisplayModeIndex = (int)WeatherDisplayMode.Detailed;
+        Check("索引写回能改到枚举", () => settings.DisplayMode == WeatherDisplayMode.Detailed);
+
+        Section("九、报警图标可配且非空");
+        Check("天气报警字形非空", () => !string.IsNullOrEmpty(vm.WeatherAlertGlyph));
+        Check("地震报警字形非空", () => !string.IsNullOrEmpty(vm.EarthquakeAlertGlyph));
+        Check("改天气报警字形会通知界面",
+            () => vm.WeatherAlertGlyph == store.Weather.AlertGlyph);
+
+        Section("十、真实接口联调（联网，验证解析而不是猜测）");
         foreach (var provider in new IWeatherProvider[] { new OpenMeteoProvider(), new MetNorwayProvider(), new WttrInProvider() })
         {
             LiveCheck($"天气源 {provider.DisplayName}", async () =>
@@ -149,7 +180,7 @@ internal static class Program
             });
         }
 
-        Section("九、地理编码联调");
+        Section("十一、地理编码联调");
         LiveCheck("逆地理编码（应能反查到北京一带）", async () =>
         {
             var name = await geocoder.ReverseAsync(Lat, Lon);

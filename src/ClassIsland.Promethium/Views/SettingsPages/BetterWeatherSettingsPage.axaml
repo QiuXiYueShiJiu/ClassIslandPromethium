@@ -316,6 +316,12 @@
                     </fa:SettingsExpanderItem.Footer>
                 </fa:SettingsExpanderItem>
 
+                <fa:SettingsExpanderItem Content="速报图标字形" Description="一个 Fluent 图标码位，例如 \uE7BA 是警告三角。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <TextBox Text="{Binding Earthquake.AlertGlyph, Mode=TwoWay}" MinWidth="120" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
                 <fa:SettingsExpanderItem Content="提示音" Description="留空就用 ClassIsland 通知自己的声音。">
                     <fa:SettingsExpanderItem.Footer>
                         <StackPanel Orientation="Horizontal" Spacing="6">

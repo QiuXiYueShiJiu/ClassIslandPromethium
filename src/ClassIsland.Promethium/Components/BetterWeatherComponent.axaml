@@ -35,30 +35,40 @@
         <TextBlock Text="{Binding TodayRangeText}"
                    VerticalAlignment="Center"
                    FontSize="{DynamicResource MainWindowSecondaryFontSize}"
-                   IsVisible="{Binding Settings.ShowDailyRange}" />
+                   IsVisible="{Binding ShowDailyRangeEffective}" />
         <TextBlock Text="{Binding HumidityText}"
                    VerticalAlignment="Center"
                    FontSize="{DynamicResource MainWindowSecondaryFontSize}"
-                   IsVisible="{Binding Settings.ShowHumidity}" />
+                   IsVisible="{Binding ShowHumidityEffective}" />
         <TextBlock Text="{Binding WindText}"
                    VerticalAlignment="Center"
                    FontSize="{DynamicResource MainWindowSecondaryFontSize}"
-                   IsVisible="{Binding Settings.ShowWind}" />
+                   IsVisible="{Binding ShowWindEffective}" />
         <TextBlock Text="{Binding FeelsLikeText}"
                    VerticalAlignment="Center"
                    FontSize="{DynamicResource MainWindowSecondaryFontSize}"
-                   IsVisible="{Binding Settings.ShowFeelsLike}" />
+                   IsVisible="{Binding ShowFeelsLikeEffective}" />
         <TextBlock Text="{Binding Config.LocationName}"
                    VerticalAlignment="Center"
                    FontSize="{DynamicResource MainWindowSecondaryFontSize}"
-                   IsVisible="{Binding Settings.ShowLocationName}" />
+                   IsVisible="{Binding ShowLocationNameEffective}" />
 
         <!-- 报警：只显示检测器真实判定出来的结果，检测不到就不显示 -->
+        <ci:FluentIcon Glyph="{Binding WeatherAlertGlyph}"
+                       IsVisible="{Binding Alerts.HasWeatherAlert}"
+                       Height="18" Width="18" FontSize="18"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource SystemFillColorCautionBrush}" />
         <TextBlock Text="{Binding Alerts.WeatherAlertText}"
                    IsVisible="{Binding Alerts.HasWeatherAlert}"
                    VerticalAlignment="Center"
                    FontSize="{DynamicResource MainWindowSecondaryFontSize}"
                    Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+        <ci:FluentIcon Glyph="{Binding EarthquakeAlertGlyph}"
+                       IsVisible="{Binding Alerts.HasEarthquakeAlert}"
+                       Height="18" Width="18" FontSize="18"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
         <TextBlock Text="{Binding Alerts.EarthquakeAlertText}"
                    IsVisible="{Binding Alerts.HasEarthquakeAlert}"
                    VerticalAlignment="Center"

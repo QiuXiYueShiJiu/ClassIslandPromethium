@@ -17,7 +17,21 @@
             <fa:InfoBar Severity="Informational"
                         IsOpen="True"
                         IsClosable="False"
-                        Message="这里只管组件显示什么。要改城市、用地图选点，请到【设置 → Pm优化 → 更好的天气】。" />
+                        Message="这里只管组件显示什么。要改位置、换数据源、配报警，请到【设置 → Pm优化 → 更好的天气】。" />
+
+            <fa:SettingsExpander IconSource="{ci:FluentIconSource &#xE8FD;}"
+                                 Header="显示模式"
+                                 Description="先挑一个预设；选了「自定义」，下面那些逐项开关才起作用。"
+                                 IsExpanded="True">
+                <fa:SettingsExpander.Footer>
+                    <ComboBox MinWidth="140" SelectedIndex="{Binding Settings.DisplayModeIndex, Mode=TwoWay}">
+                        <ComboBoxItem>标准</ComboBoxItem>
+                        <ComboBoxItem>紧凑</ComboBoxItem>
+                        <ComboBoxItem>详细</ComboBoxItem>
+                        <ComboBoxItem>自定义</ComboBoxItem>
+                    </ComboBox>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
 
             <fa:SettingsExpander IconSource="{ci:FluentIconSource &#xEFD7;}"
                                  Header="显示位置名"
@@ -37,7 +51,7 @@
 
             <fa:SettingsExpander IconSource="{ci:FluentIconSource &#xEFD7;}"
                                  Header="逐项显示开关"
-                                 Description="控制组件上还额外显示哪些气象要素。"
+                                 Description="仅在显示模式为「自定义」时生效。"
                                  IsExpanded="True">
                 <fa:SettingsExpanderItem Content="湿度" Description="相对湿度百分比。">
                     <fa:SettingsExpanderItem.Footer>

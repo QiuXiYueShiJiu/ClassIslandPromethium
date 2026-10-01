@@ -19,6 +19,7 @@ namespace ClassIsland.Promethium.ViewModels;
 public partial class BetterWeatherViewModel : ObservableObject
 {
     private readonly WeatherMonitor _monitor;
+    private readonly PromethiumConfigStore _store;
     private BetterWeatherSettings? _settings;
     private string? _cachedImagePath;
     private Bitmap? _cachedImage;
@@ -31,6 +32,36 @@ public partial class BetterWeatherViewModel : ObservableObject
 
     /// <summary>组件自己的显示设置。宿主构造完之后才注入，所以可能为 null。</summary>
     public BetterWeatherSettings? Settings => _settings;
+
+    // ---------- 生效后的显示开关 ----------
+    // 界面绑这些，不直接绑 Settings.ShowX：显示模式为预设时，
+    // 实际显示什么是按预设算出来的，与逐项开关无关。
+
+    /// <summary>是否显示位置名（生效值）。</summary>
+    [ObservableProperty]
+    private bool _showLocationNameEffective = true;
+
+    /// <summary>是否显示今日温差（生效值）。</summary>
+    [ObservableProperty]
+    private bool _showDailyRangeEffective = true;
+
+    /// <summary>是否显示湿度（生效值）。</summary>
+    [ObservableProperty]
+    private bool _showHumidityEffective = true;
+
+    /// <summary>是否显示风力（生效值）。</summary>
+    [ObservableProperty]
+    private bool _showWindEffective;
+
+    /// <summary>是否显示体感温度（生效值）。</summary>
+    [ObservableProperty]
+    private bool _showFeelsLikeEffective;
+
+    /// <summary>天气报警用的图标字形。</summary>
+    public string WeatherAlertGlyph => Config.AlertGlyph;
+
+    /// <summary>地震速报用的图标字形。</summary>
+    public string EarthquakeAlertGlyph => _store.Earthquake.AlertGlyph;
 
     // ---------- 天气文字 ----------
 
@@ -99,10 +130,12 @@ public partial class BetterWeatherViewModel : ObservableObject
     public BetterWeatherViewModel(WeatherMonitor monitor, PromethiumConfigStore store, AlertCenter alerts)
     {
         _monitor = monitor;
+        _store = store;
         Config = store.Weather;
         Alerts = alerts;
 
         Config.PropertyChanged += OnConfigChanged;
+        store.Earthquake.PropertyChanged += OnEarthquakeConfigChanged;
         _monitor.SnapshotUpdated += (_, _) => Apply(_monitor.Snapshot);
         _monitor.PropertyChanged += OnMonitorChanged;
 
@@ -116,14 +149,76 @@ public partial class BetterWeatherViewModel : ObservableObject
     /// <summary>关联组件设置。宿主在构造之后才注入，所以要能被反复调用。</summary>
     public void AttachSettings(BetterWeatherSettings settings)
     {
-        if (!ReferenceEquals(_settings, settings))
+        if (ReferenceEquals(_settings, settings))
         {
-            _settings = settings;
+            ApplyDisplayMode();
+            return;
+        }
+
+        if (_settings != null)
+        {
+            _settings.PropertyChanged -= OnSettingsChanged;
+        }
+
+        _settings = settings;
+        _settings.PropertyChanged += OnSettingsChanged;
+        ApplyDisplayMode();
+    }
+
+    /// <summary>
+    /// 按显示模式算出实际要显示哪几项。
+    /// </summary>
+    /// <remarks>
+    /// 选预设时逐项开关一律不参与计算——否则会出现「模式选了紧凑、
+    /// 却因为某个开关还开着而多显示一项」这种说不清的状态。
+    /// </remarks>
+    private void ApplyDisplayMode()
+    {
+        var settings = _settings;
+        if (settings == null)
+        {
+            return;
+        }
+
+        switch (settings.DisplayMode)
+        {
+            case WeatherDisplayMode.Compact:
+                SetEffective(false, false, false, false, false);
+                break;
+            case WeatherDisplayMode.Detailed:
+                SetEffective(true, true, true, true, true);
+                break;
+            case WeatherDisplayMode.Custom:
+                SetEffective(settings.ShowLocationName, settings.ShowDailyRange, settings.ShowHumidity,
+                    settings.ShowWind, settings.ShowFeelsLike);
+                break;
+            default:
+                SetEffective(true, true, true, false, false);
+                break;
         }
     }
 
+    private void SetEffective(bool locationName, bool dailyRange, bool humidity, bool wind, bool feelsLike)
+    {
+        ShowLocationNameEffective = locationName;
+        ShowDailyRangeEffective = dailyRange;
+        ShowHumidityEffective = humidity;
+        ShowWindEffective = wind;
+        ShowFeelsLikeEffective = feelsLike;
+    }
+
+    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e) => ApplyDisplayMode();
+
     /// <summary>立刻要一次数据，用于刚改完设置的时候。</summary>
     public Task RefreshAsync() => _monitor.RefreshNowAsync();
+
+    private void OnEarthquakeConfigChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(EarthquakeConfig.AlertGlyph))
+        {
+            OnPropertyChanged(nameof(EarthquakeAlertGlyph));
+        }
+    }
 
     private void OnMonitorChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -143,6 +238,11 @@ public partial class BetterWeatherViewModel : ObservableObject
             {
                 Apply(_monitor.Snapshot);
             }
+        }
+
+        if (e.PropertyName is nameof(WeatherConfig.AlertGlyph))
+        {
+            OnPropertyChanged(nameof(WeatherAlertGlyph));
         }
 
         // 换地方或换数据源，立刻重新抓一次，别等下一个周期

@@ -59,6 +59,10 @@ public partial class EarthquakeConfig : ObservableObject
     [ObservableProperty]
     private double _soundVolume = 1d;
 
+    /// <summary>速报图标字形。默认给一个警示三角。</summary>
+    [ObservableProperty]
+    private string _alertGlyph = "\uE7BA";
+
     /// <summary>
     /// 已经提醒过的事件编号。存盘是为了让插件重启后不会把同一次地震再报一遍。
     /// </summary>
