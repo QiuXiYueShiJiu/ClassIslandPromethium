@@ -4,6 +4,9 @@ using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
 using ClassIsland.Promethium.Components;
 using ClassIsland.Promethium.Services;
+using ClassIsland.Promethium.Notifications;
+using ClassIsland.Promethium.Services.EarthquakeProviders;
+using ClassIsland.Promethium.Services.WeatherProviders;
 using ClassIsland.Promethium.Views.ComponentSettings;
 using ClassIsland.Promethium.Views.SettingsPages;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,11 +28,46 @@ public class PromethiumPlugin : PluginBase
 
     public override void Initialize(HostBuilderContext context, IServiceCollection services)
     {
-        // 全局配置存到宿主分配的本插件设置目录
-        services.AddSingleton(new PromethiumConfigStore(PluginConfigFolder));
+        // 全局配置存到宿主分配的本插件设置目录。
+        // 先建实例、挂上自动保存，再注册进 DI，这样设置页和组件拿到的是同一个对象。
+        var store = new PromethiumConfigStore(PluginConfigFolder);
+        store.WatchForChanges();
+        services.AddSingleton(store);
 
-        services.AddSingleton<OpenMeteoService>();
         services.AddSingleton<NominatimService>();
+
+        // 天气数据源：三个免密钥的预设
+        services.AddSingleton<OpenMeteoProvider>();
+        services.AddSingleton<MetNorwayProvider>();
+        services.AddSingleton<WttrInProvider>();
+        services.AddSingleton(sp => new WeatherProviderCatalog(new IWeatherProvider[]
+        {
+            sp.GetRequiredService<OpenMeteoProvider>(),
+            sp.GetRequiredService<MetNorwayProvider>(),
+            sp.GetRequiredService<WttrInProvider>()
+        }));
+
+        // 地震目录：两个免密钥的预设
+        services.AddSingleton<UsgsEarthquakeProvider>();
+        services.AddSingleton<EmscEarthquakeProvider>();
+        services.AddSingleton(sp => new EarthquakeProviderCatalog(new IEarthquakeProvider[]
+        {
+            sp.GetRequiredService<UsgsEarthquakeProvider>(),
+            sp.GetRequiredService<EmscEarthquakeProvider>()
+        }));
+
+        // 报警状态的单一来源
+        services.AddSingleton<AlertCenter>();
+
+        // 监测循环：整个插件里只有它们会去拉网络数据
+        services.AddSingleton<WeatherMonitor>();
+        services.AddSingleton<EarthquakeMonitor>();
+        services.AddHostedService(sp => sp.GetRequiredService<WeatherMonitor>());
+        services.AddHostedService(sp => sp.GetRequiredService<EarthquakeMonitor>());
+
+        // 报警走宿主自己的通知系统，用户能在 CI 的通知设置里统一管理
+        services.AddNotificationProvider<WeatherAlertNotificationProvider>();
+        services.AddNotificationProvider<EarthquakeNotificationProvider>();
 
         // 设置窗口入口：Pm优化
         services.AddSettingsPageGroup(SettingsGroupId, "\uE713", "Pm优化");

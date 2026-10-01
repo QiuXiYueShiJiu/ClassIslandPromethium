@@ -1,7 +1,6 @@
 // Pm钷 v1.0.0.0 —— ClassIsland 综合增强插件
 using System.Globalization;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace ClassIsland.Promethium.Services;
@@ -24,21 +23,10 @@ public class NominatimService
 {
     private const string Endpoint = "https://nominatim.openstreetmap.org";
 
-    private static readonly HttpClient Http = CreateClient();
+    private static HttpClient Http => HttpClients.Shared;
 
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static DateTime _lastRequest = DateTime.MinValue;
-
-    private static HttpClient CreateClient()
-    {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        client.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("ClassIsland-Promethium", "1.0"));
-        client.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("(+https://github.com/QiuXiYueShiJiu/ClassIslandPromethium)"));
-        client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("zh-CN"));
-        return client;
-    }
 
     /// <summary>按 Nominatim 的要求把请求间隔压到 1 秒以上。</summary>
     private static async Task ThrottleAsync(CancellationToken token)

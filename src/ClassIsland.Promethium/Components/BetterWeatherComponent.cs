@@ -1,5 +1,4 @@
 // Pm钷 v1.0.0.0 —— ClassIsland 综合增强插件
-using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Promethium.Models;
@@ -20,15 +19,15 @@ namespace ClassIsland.Promethium.Components;
     "显示指定经纬度（可精确到街道）的天气，设置页支持地图选点。")]
 public partial class BetterWeatherComponent : ComponentBase<BetterWeatherSettings>
 {
-    private DispatcherTimer? _timer;
+    private readonly WeatherMonitor _monitor;
 
     /// <summary>显示用的视图模型。</summary>
     public BetterWeatherViewModel ViewModel { get; }
 
-    public BetterWeatherComponent(OpenMeteoService weatherService, PromethiumConfigStore configStore)
+    public BetterWeatherComponent(WeatherMonitor monitor, PromethiumConfigStore configStore, AlertCenter alerts)
     {
-        ViewModel = new BetterWeatherViewModel(weatherService, configStore);
-        ViewModel.RefreshIntervalChanged += (_, _) => RestartTimer();
+        _monitor = monitor;
+        ViewModel = new BetterWeatherViewModel(monitor, configStore, alerts);
         InitializeComponent();
 
         // 挂在内部元素上而不是组件本身：宿主可能也会动组件的 DataContext，
@@ -36,7 +35,6 @@ public partial class BetterWeatherComponent : ComponentBase<BetterWeatherSetting
         Root.DataContext = ViewModel;
 
         AttachedToVisualTree += OnAttached;
-        DetachedFromVisualTree += OnDetached;
     }
 
     private void OnAttached(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
@@ -47,30 +45,10 @@ public partial class BetterWeatherComponent : ComponentBase<BetterWeatherSetting
             ViewModel.AttachSettings(Settings);
         }
 
-        _ = ViewModel.RefreshAsync();
-        RestartTimer();
-    }
-
-    /// <summary>按当前的刷新间隔重建计时器。</summary>
-    private void RestartTimer()
-    {
-        _timer?.Stop();
-        _timer = null;
-
-        var minutes = Settings?.RefreshIntervalMinutes ?? 15;
-        if (minutes <= 0)
+        // 监测器会自己按间隔刷新；这里只在还没有数据时催一下，避免开天窗
+        if (_monitor.Snapshot == null)
         {
-            return;
+            _ = ViewModel.RefreshAsync();
         }
-
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(minutes) };
-        _timer.Tick += (_, _) => _ = ViewModel.RefreshAsync();
-        _timer.Start();
-    }
-
-    private void OnDetached(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
-    {
-        _timer?.Stop();
-        _timer = null;
     }
 }

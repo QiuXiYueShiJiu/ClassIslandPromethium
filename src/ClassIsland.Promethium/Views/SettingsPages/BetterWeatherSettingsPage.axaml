@@ -7,91 +7,339 @@
                      xmlns:fa="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
                      xmlns:pm="clr-namespace:ClassIsland.Promethium.Controls"
                      mc:Ignorable="d"
-                     d:DesignHeight="700" d:DesignWidth="800">
+                     d:DesignHeight="900" d:DesignWidth="820">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel x:Name="Root" Spacing="10" Margin="0,0,0,24">
 
-            <fa:InfoBar Severity="Informational" IsOpen="True" IsClosable="False"
-                        Message="天气数据来自 Open-Meteo（直接按经纬度查询，无需密钥）；地图瓦片与地名来自 OpenStreetMap。这里选的位置是全局的，主界面上所有「更好的天气」组件都用它。" />
+            <fa:InfoBar Severity="Warning" IsOpen="True" IsClosable="False"
+                        Title="网络数据不代表真实天气信息"
+                        Message="本页所有天气数据都来自第三方公开接口，仅供参考，请以气象台正式发布的信息为准。地震部分同理：它是公开地震目录的事后速报，不是震前预警。" />
 
-            <Border CornerRadius="8" ClipToBounds="True" BorderThickness="1"
-                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                    Height="340">
-                <Grid>
-                    <pm:MapPicker x:Name="Map" />
-                    <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                            Margin="6" Padding="5,2" CornerRadius="4"
-                            Background="#99000000">
-                        <TextBlock Text="© OpenStreetMap 贡献者"
-                                   FontSize="10" Foreground="White" />
+            <!-- ==================== 关注位置（天气与地震共用） ==================== -->
+            <Border CornerRadius="8" BorderThickness="1" Padding="12"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="关注位置" FontWeight="SemiBold" />
+                    <TextBlock FontSize="12" Opacity="0.7" TextWrapping="Wrap"
+                               Text="天气和地震速报都用这个点。地震那块没有单独的位置设置，就是为了保证两边永远对得上。" />
+
+                    <Border CornerRadius="8" ClipToBounds="True" BorderThickness="1"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            Height="320">
+                        <Grid>
+                            <pm:MapPicker x:Name="Map" />
+                            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                    Margin="6" Padding="5,2" CornerRadius="4" Background="#99000000">
+                                <TextBlock Text="© OpenStreetMap 贡献者" FontSize="10" Foreground="White" />
+                            </Border>
+                            <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                                    Margin="6" Padding="7,3" CornerRadius="4" Background="#99000000">
+                                <TextBlock Text="点一下选点 · 拖动平移 · 滚轮缩放" FontSize="11" Foreground="White" />
+                            </Border>
+                        </Grid>
                     </Border>
-                    <Border HorizontalAlignment="Left" VerticalAlignment="Top"
-                            Margin="6" Padding="7,3" CornerRadius="4"
-                            Background="#99000000">
-                        <TextBlock Text="点一下选点 · 拖动平移 · 滚轮缩放"
-                                   FontSize="11" Foreground="White" />
-                    </Border>
-                </Grid>
+
+                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Opacity="0.85" />
+
+                    <Grid ColumnDefinitions="Auto,*,Auto,*,Auto" RowDefinitions="Auto">
+                        <TextBlock Grid.Column="0" Text="纬度" VerticalAlignment="Center" />
+                        <fa:NumberBox Grid.Column="1" Margin="6,0,12,0"
+                                      Value="{Binding Weather.Latitude, Mode=TwoWay}"
+                                      Minimum="-85" Maximum="85" SmallChange="0.0001" LargeChange="0.01"
+                                      SpinButtonPlacementMode="Compact" />
+                        <TextBlock Grid.Column="2" Text="经度" VerticalAlignment="Center" />
+                        <fa:NumberBox Grid.Column="3" Margin="6,0,12,0"
+                                      Value="{Binding Weather.Longitude, Mode=TwoWay}"
+                                      Minimum="-180" Maximum="180" SmallChange="0.0001" LargeChange="0.01"
+                                      SpinButtonPlacementMode="Compact" />
+                        <Button Grid.Column="4" Content="反查地名" Command="{Binding LookupNameCommand}" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBox Text="{Binding Weather.LocationName, Mode=TwoWay}" MinWidth="300" />
+                        <TextBox Text="{Binding SearchText, Mode=TwoWay}" MinWidth="200"
+                                 Watermark="输入地名或地址，例如「XX镇」「XX街道」" />
+                        <Button Content="搜索" Command="{Binding SearchCommand}" />
+                    </StackPanel>
+
+                    <ListBox x:Name="CandidateList" ItemsSource="{Binding Candidates}"
+                             MaxHeight="170" Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap" FontSize="12" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
             </Border>
 
-            <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Opacity="0.85" />
-
-            <fa:SettingsExpander Header="精确坐标"
-                                 Description="可以直接填经纬度；改完会自动重新查天气。"
+            <!-- ==================== 块一：天气 ==================== -->
+            <fa:SettingsExpander Header="天气"
+                                 Description="网络数据不代表真实天气信息"
                                  IsExpanded="True">
-                <fa:SettingsExpanderItem Content="纬度" Description="北纬为正，范围 -85 ~ 85。">
+
+                <fa:SettingsExpanderItem Content="数据源" Description="{Binding SelectedWeatherProviderDescription}">
                     <fa:SettingsExpanderItem.Footer>
-                        <fa:NumberBox Value="{Binding Config.Latitude, Mode=TwoWay}"
-                                      Minimum="-85" Maximum="85"
-                                      SmallChange="0.0001" LargeChange="0.01"
-                                      SpinButtonPlacementMode="Compact"
-                                      MinWidth="180" />
+                        <ComboBox MinWidth="200"
+                                  ItemsSource="{Binding WeatherProviders}"
+                                  SelectedIndex="{Binding SelectedWeatherProviderIndex, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </fa:SettingsExpanderItem.Footer>
                 </fa:SettingsExpanderItem>
-                <fa:SettingsExpanderItem Content="经度" Description="东经为正，范围 -180 ~ 180。">
+
+                <fa:SettingsExpanderItem Content="图标显示方式"
+                                         Description="系统图标 / emoji / 自己的图片 / 只要文字。">
                     <fa:SettingsExpanderItem.Footer>
-                        <fa:NumberBox Value="{Binding Config.Longitude, Mode=TwoWay}"
-                                      Minimum="-180" Maximum="180"
-                                      SmallChange="0.0001" LargeChange="0.01"
-                                      SpinButtonPlacementMode="Compact"
-                                      MinWidth="180" />
+                        <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedIconModeIndex, Mode=TwoWay}">
+                            <ComboBoxItem>系统图标</ComboBoxItem>
+                            <ComboBoxItem>emoji</ComboBoxItem>
+                            <ComboBoxItem>自定义图片</ComboBoxItem>
+                            <ComboBoxItem>纯文字</ComboBoxItem>
+                        </ComboBox>
                     </fa:SettingsExpanderItem.Footer>
                 </fa:SettingsExpanderItem>
-                <fa:SettingsExpanderItem Content="地点名" Description="显示在组件上，一般由反查自动填写。">
+
+                <fa:SettingsExpanderItem Content="emoji 字体" IsVisible="{Binding IsEmojiMode}"
+                                         Description="指定用哪个字体渲染 emoji，缺字体会显示成方块。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <TextBox Text="{Binding Weather.EmojiFontFamily, Mode=TwoWay}" MinWidth="200" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="自定义图片目录" IsVisible="{Binding IsImageMode}"
+                                         Description="{Binding ImageNamingHint}">
                     <fa:SettingsExpanderItem.Footer>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBox Text="{Binding Config.LocationName, Mode=TwoWay}" MinWidth="220" />
-                            <Button Content="重新反查" Command="{Binding LookupNameCommand}" />
+                            <TextBox Text="{Binding Weather.CustomImageFolder, Mode=TwoWay}" MinWidth="240" />
+                            <Button Content="选择目录" Click="OnBrowseImageFolder" />
                         </StackPanel>
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="自定义图片高度" IsVisible="{Binding IsImageMode}"
+                                         Description="单位像素。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Weather.CustomImageHeight, Mode=TwoWay}"
+                                      Minimum="8" Maximum="128" SmallChange="1"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="刷新间隔" Description="分钟。填 0 表示不自动刷新。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Weather.RefreshIntervalMinutes, Mode=TwoWay}"
+                                      Minimum="0" Maximum="360" SmallChange="5" LargeChange="15"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="报警模式"
+                                         Description="关掉就不报；「实时显示」只在主界面组件上挂着，不打扰你。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedWeatherDeliveryIndex, Mode=TwoWay}">
+                            <ComboBoxItem>关闭</ComboBoxItem>
+                            <ComboBoxItem>只弹提醒</ComboBoxItem>
+                            <ComboBoxItem>只实时显示</ComboBoxItem>
+                            <ComboBoxItem>提醒 + 实时显示</ComboBoxItem>
+                        </ComboBox>
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="高温阈值" Description="摄氏度，按今日最高温判断。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Weather.HighTemperatureThreshold, Mode=TwoWay}"
+                                      Minimum="0" Maximum="60" SmallChange="1"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="低温阈值" Description="摄氏度，按今日最低温判断。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Weather.LowTemperatureThreshold, Mode=TwoWay}"
+                                      Minimum="-60" Maximum="30" SmallChange="1"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="大风阈值" Description="公里每小时，按当前风速判断。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Weather.WindSpeedThreshold, Mode=TwoWay}"
+                                      Minimum="0" Maximum="300" SmallChange="5"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="强降水阈值"
+                                         Description="毫米。注意这里比的是数据源给的当前时段降水量，不是全天累计。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Weather.PrecipitationThreshold, Mode=TwoWay}"
+                                      Minimum="0" Maximum="300" SmallChange="1"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="雷暴报警" Description="当前天气为雷阵雨时报警。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Weather.AlertThunderstorm, Mode=TwoWay}" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="大雾/霾报警" Description="当前有雾或霾时报警。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Weather.AlertFog, Mode=TwoWay}" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="提醒文案" Description="{Binding WeatherVariableHint}">
+                    <fa:SettingsExpanderItem.Footer>
+                        <TextBox Text="{Binding Weather.NotifyTemplate, Mode=TwoWay}" MinWidth="320" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="实时显示文案" Description="{Binding WeatherVariableHint}">
+                    <fa:SettingsExpanderItem.Footer>
+                        <TextBox Text="{Binding Weather.InlineTemplate, Mode=TwoWay}" MinWidth="320" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="报警图标字形" Description="一个 Fluent 图标码位，例如 \uE7BA 是警告三角。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <TextBox Text="{Binding Weather.AlertGlyph, Mode=TwoWay}" MinWidth="120" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="提示音" Description="留空就用 ClassIsland 通知自己的声音。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBox Text="{Binding Weather.SoundPath, Mode=TwoWay}" MinWidth="240" />
+                            <Button Content="浏览" Click="OnBrowseWeatherSound" />
+                            <Button Content="试听" Command="{Binding TestWeatherSoundCommand}" />
+                        </StackPanel>
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="提示音音量" Description="0 到 1。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Weather.SoundVolume, Mode=TwoWay}"
+                                      Minimum="0" Maximum="1" SmallChange="0.05"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
                     </fa:SettingsExpanderItem.Footer>
                 </fa:SettingsExpanderItem>
             </fa:SettingsExpander>
 
-            <fa:SettingsExpander Header="按地名搜索"
-                                 Description="搜中文地名，从结果里挑一个。反查和搜索都走 OpenStreetMap，一秒最多一次请求。">
-                <fa:SettingsExpanderItem Content="搜索">
+            <!-- ==================== 块二：地震预警 ==================== -->
+            <fa:SettingsExpander Header="地震预警"
+                                 Description="公开地震目录的事后速报，做不到震前预警"
+                                 IsExpanded="True">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding Earthquake.IsEnabled, Mode=TwoWay}" />
+                </fa:SettingsExpander.Footer>
+
+                <fa:SettingsExpanderItem Content="必须知道的限制"
+                                         Description="地震要等台网记录、定位、定级之后才会进目录，所以拿到消息时地震往往已经发生完了。真正的震前预警需要专门的台网和推送通道，插件做不到。这里宁可漏报，也不报假消息。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <TextBlock Text="事后速报" Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="数据源" Description="{Binding SelectedEarthquakeProviderDescription}">
+                    <fa:SettingsExpanderItem.Footer>
+                        <ComboBox MinWidth="200"
+                                  ItemsSource="{Binding EarthquakeProviders}"
+                                  SelectedIndex="{Binding SelectedEarthquakeProviderIndex, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="关注半径" Description="公里。震中在这个范围内才考虑提醒。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Earthquake.RadiusKm, Mode=TwoWay}"
+                                      Minimum="1" Maximum="20000" SmallChange="50" LargeChange="500"
+                                      SpinButtonPlacementMode="Compact" MinWidth="150" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="最低震级" Description="小于这个震级不提醒。调低会更容易触发。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Earthquake.MinMagnitude, Mode=TwoWay}"
+                                      Minimum="0" Maximum="10" SmallChange="0.1"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="回看时长" Description="小时。查最近这段时间内的记录。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Earthquake.LookbackHours, Mode=TwoWay}"
+                                      Minimum="1" Maximum="720" SmallChange="6" LargeChange="24"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="检查间隔" Description="分钟。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Earthquake.PollIntervalMinutes, Mode=TwoWay}"
+                                      Minimum="1" Maximum="120" SmallChange="1" LargeChange="5"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="报警模式">
+                    <fa:SettingsExpanderItem.Footer>
+                        <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedEarthquakeDeliveryIndex, Mode=TwoWay}">
+                            <ComboBoxItem>关闭</ComboBoxItem>
+                            <ComboBoxItem>只弹提醒</ComboBoxItem>
+                            <ComboBoxItem>只实时显示</ComboBoxItem>
+                            <ComboBoxItem>提醒 + 实时显示</ComboBoxItem>
+                        </ComboBox>
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="提醒文案" Description="{Binding EarthquakeVariableHint}">
+                    <fa:SettingsExpanderItem.Footer>
+                        <TextBox Text="{Binding Earthquake.NotifyTemplate, Mode=TwoWay}" MinWidth="320" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="实时显示文案" Description="{Binding EarthquakeVariableHint}">
+                    <fa:SettingsExpanderItem.Footer>
+                        <TextBox Text="{Binding Earthquake.InlineTemplate, Mode=TwoWay}" MinWidth="320" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="提示音" Description="留空就用 ClassIsland 通知自己的声音。">
                     <fa:SettingsExpanderItem.Footer>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBox Text="{Binding SearchText, Mode=TwoWay}" MinWidth="220"
-                                     Watermark="例如：某某中学" />
-                            <Button Content="搜索" Command="{Binding SearchCommand}" />
+                            <TextBox Text="{Binding Earthquake.SoundPath, Mode=TwoWay}" MinWidth="240" />
+                            <Button Content="浏览" Click="OnBrowseEarthquakeSound" />
+                            <Button Content="试听" Command="{Binding TestEarthquakeSoundCommand}" />
                         </StackPanel>
                     </fa:SettingsExpanderItem.Footer>
                 </fa:SettingsExpanderItem>
-                <ListBox x:Name="CandidateList"
-                         ItemsSource="{Binding Candidates}"
-                         MaxHeight="190"
-                         Background="Transparent">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap" FontSize="12" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </fa:SettingsExpander>
 
-            <TextBlock FontSize="12" Opacity="0.6" TextWrapping="Wrap"
-                       Text="说明：预报本身是按格点算的，所谓「精确到街道」指的是这里显示的地点名能到街道一级，并不代表预报分辨率到了街道。" />
+                <fa:SettingsExpanderItem Content="提示音音量" Description="0 到 1。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <fa:NumberBox Value="{Binding Earthquake.SoundVolume, Mode=TwoWay}"
+                                      Minimum="0" Maximum="1" SmallChange="0.05"
+                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="立刻检查一次" Description="{Binding EarthquakeStatusText}">
+                    <fa:SettingsExpanderItem.Footer>
+                        <Button Content="检查" Command="{Binding CheckEarthquakeCommand}" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+            </fa:SettingsExpander>
         </StackPanel>
     </ScrollViewer>
 </ci:SettingsPageBase>

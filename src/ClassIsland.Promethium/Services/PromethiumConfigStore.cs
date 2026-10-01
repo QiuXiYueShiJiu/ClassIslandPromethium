@@ -25,15 +25,20 @@ public class PromethiumConfigStore
     private readonly string _filePath;
 
     /// <summary>「更好的天气」的全局配置。</summary>
-    public BetterWeatherConfig BetterWeather { get; private set; }
+    public WeatherConfig Weather { get; private set; }
+
+    /// <summary>地震速报的配置。</summary>
+    public EarthquakeConfig Earthquake { get; private set; }
 
     public PromethiumConfigStore(string configFolder)
     {
         _filePath = Path.Combine(configFolder, "settings.json");
-        BetterWeather = Load();
+        var loaded = Load();
+        Weather = loaded.Weather ?? new WeatherConfig();
+        Earthquake = loaded.Earthquake ?? new EarthquakeConfig();
     }
 
-    private BetterWeatherConfig Load()
+    private ConfigRoot Load()
     {
         try
         {
@@ -41,9 +46,9 @@ public class PromethiumConfigStore
             {
                 var json = File.ReadAllText(_filePath);
                 var loaded = JsonSerializer.Deserialize<ConfigRoot>(json, Options);
-                if (loaded?.BetterWeather != null)
+                if (loaded != null)
                 {
-                    return loaded.BetterWeather;
+                    return loaded;
                 }
             }
         }
@@ -52,7 +57,7 @@ public class PromethiumConfigStore
             // 配置坏了不该让插件起不来，用默认值继续，下一次保存会覆盖它
         }
 
-        return new BetterWeatherConfig();
+        return new ConfigRoot();
     }
 
     /// <summary>把当前配置写回磁盘。</summary>
@@ -60,7 +65,7 @@ public class PromethiumConfigStore
     {
         try
         {
-            var root = new ConfigRoot { BetterWeather = BetterWeather };
+            var root = new ConfigRoot { Weather = Weather, Earthquake = Earthquake };
             var json = JsonSerializer.Serialize(root, Options);
             var temp = _filePath + ".tmp";
             File.WriteAllText(temp, json);
@@ -75,6 +80,15 @@ public class PromethiumConfigStore
     /// <summary>配置文件的外层结构，方便以后往里加别的模块的配置。</summary>
     private class ConfigRoot
     {
-        public BetterWeatherConfig? BetterWeather { get; set; }
+        public WeatherConfig? Weather { get; set; }
+
+        public EarthquakeConfig? Earthquake { get; set; }
+    }
+
+    /// <summary>任一配置被改动就落盘。</summary>
+    public void WatchForChanges()
+    {
+        Weather.PropertyChanged += (_, _) => Save();
+        Earthquake.PropertyChanged += (_, _) => Save();
     }
 }
