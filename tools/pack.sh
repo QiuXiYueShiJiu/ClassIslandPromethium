@@ -11,8 +11,8 @@
 # 否则插件加载上下文里会出现第二份，宿主自己那份的类型就对不上了。
 set -euo pipefail
 
-cd "$(dirname "$0")/../src/ClassIsland.Promethium"
-ROOT="$PWD"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT/src/ClassIsland.Promethium"
 
 # 有些 CI / 容器环境里会带一个名为 version 的环境变量（值可能是 N/A），
 # MSBuild 会把它当成属性 $(Version)，还原时报 "'N/A' is not a valid version string"。
@@ -35,7 +35,7 @@ if [ ! -f "$OUT/ClassIsland.Promethium.dll" ]; then
     exit 1
 fi
 
-STAGE="dist/.stage-$VERSION"
+STAGE="$REPO_ROOT/dist/.stage-$VERSION"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 
@@ -64,11 +64,11 @@ for banned in ClassIsland.Core.dll ClassIsland.Shared.dll ClassIsland.Platforms.
     fi
 done
 
-CIPX="dist/Pm-$VERSION.cipx"
+CIPX="$REPO_ROOT/dist/Pm-$VERSION.cipx"
 rm -f "$CIPX"
 
 echo "==> 打包 $CIPX"
-( cd "$STAGE" && zip -q -X -r "$ROOT/$CIPX" . )
+( cd "$STAGE" && zip -q -X -r "$CIPX" . )
 rm -rf "$STAGE"
 
 echo
