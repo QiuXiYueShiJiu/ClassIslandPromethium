@@ -2,7 +2,7 @@
 
 ClassIsland 综合增强插件。
 
-名字致敬 Minecraft 的 **Sodium（钠）** —— 钠是 Na，钷是 Pm，都是元素。那个模组靠重写渲染管线提速；**Pm钷 走的是另一条路**：从多个角度把 ClassIsland 变得更好用。
+从多个角度把 ClassIsland 变得更好用 —— 小到一个动作，大到一整块界面。
 
 ## 状态
 

@@ -1,7 +1,7 @@
 entranceAssembly: ClassIsland.Promethium.dll
 name: Pm钷
 id: qiuxiyueshijiu.promethium
-description: ClassIsland 综合增强插件。名字致敬 Minecraft 的 Sodium（钠）—— 从多个角度把 ClassIsland 变得更好用。
+description: ClassIsland 综合增强插件。从多个角度把 ClassIsland 变得更好用。
 version: 1.0.0.0
 apiVersion: 2.0.0.0
 author: 秋夕月拾旧
