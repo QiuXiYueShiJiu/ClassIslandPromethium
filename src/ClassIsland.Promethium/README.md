@@ -21,8 +21,16 @@
 - ClassIsland 2.0.0.1 ~ 2.1.x（API 版本 `2.0.0.0`）
 - Windows / Linux / macOS
 
-## 关于
+## 声明
 
-作者：秋夕月拾旧
+### 作者
 
-[MIT License](https://github.com/QiuXiYueShiJiu/ClassIslandPromethium/blob/main/LICENSE)
+秋夕月拾旧
+
+### 关于 AI
+
+本项目由 **DSH** 辅助完成 —— 包括代码、说明文档与图标。
+
+### 许可
+
+[MIT](https://github.com/QiuXiYueShiJiu/ClassIslandPromethium/blob/main/LICENSE) © 2026 秋夕月拾旧

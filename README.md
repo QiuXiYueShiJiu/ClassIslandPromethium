@@ -27,6 +27,16 @@
 dotnet build src/ClassIsland.Promethium/ClassIsland.Promethium.csproj -c Release
 ```
 
-## 许可
+## 声明
+
+### 作者
+
+秋夕月拾旧
+
+### 关于 AI
+
+本项目由 **DSH** 辅助完成 —— 包括代码、说明文档与图标。
+
+### 许可
 
 [MIT](LICENSE) © 2026 秋夕月拾旧
