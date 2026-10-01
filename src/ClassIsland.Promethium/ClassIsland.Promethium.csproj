@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <OutputType>Library</OutputType>
+        <AssemblyName>ClassIsland.Promethium</AssemblyName>
+        <RootNamespace>ClassIsland.Promethium</RootNamespace>
+        <Version>1.0.0.0</Version>
+        <!-- 依赖一律用宿主已加载的那份，插件包里不能再带一份 -->
+        <GenerateDependencyFile>false</GenerateDependencyFile>
+        <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- ClassIsland.Core 由宿主提供，绝不能塞进 .cipx -->
+        <PackageReference Include="ClassIsland.Core" Version="2.1.0"
+                          PrivateAssets="all" ExcludeAssets="runtime" />
+        <PackageReference Include="Avalonia" Version="11.3.17" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="manifest.yml" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="README.md" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="icon.png" CopyToOutputDirectory="PreserveNewest" Condition="Exists('icon.png')" />
+    </ItemGroup>
+
+</Project>
