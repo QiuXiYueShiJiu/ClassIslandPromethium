@@ -1,0 +1,76 @@
+// Pm钷 v1.0.0.0 —— ClassIsland 综合增强插件
+using Avalonia.Threading;
+using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Attributes;
+using ClassIsland.Promethium.Models;
+using ClassIsland.Promethium.Services;
+using ClassIsland.Promethium.ViewModels;
+
+namespace ClassIsland.Promethium.Components;
+
+/// <summary>
+/// 「更好的天气」主界面组件。
+/// </summary>
+/// <remarks>
+/// 和原版天气简报的分工：原版按城市查、插件拿不到它的城市表；
+/// 这里按自己记住的经纬度直接查，所以能精确到你在地图上点的那一个点，
+/// 并且把反查出来的街道名一起显示出来。
+/// </remarks>
+[ComponentInfo("cdce0a20-21bf-4586-8054-aba3c5308924", "更好的天气", "\uF465",
+    "显示指定经纬度（可精确到街道）的天气，设置页支持地图选点。")]
+public partial class BetterWeatherComponent : ComponentBase<BetterWeatherSettings>
+{
+    private DispatcherTimer? _timer;
+
+    /// <summary>显示用的视图模型。</summary>
+    public BetterWeatherViewModel ViewModel { get; }
+
+    public BetterWeatherComponent(OpenMeteoService weatherService, PromethiumConfigStore configStore)
+    {
+        ViewModel = new BetterWeatherViewModel(weatherService, configStore);
+        ViewModel.RefreshIntervalChanged += (_, _) => RestartTimer();
+        InitializeComponent();
+
+        // 挂在内部元素上而不是组件本身：宿主可能也会动组件的 DataContext，
+        // 挂在里面就不会被它覆盖掉。
+        Root.DataContext = ViewModel;
+
+        AttachedToVisualTree += OnAttached;
+        DetachedFromVisualTree += OnDetached;
+    }
+
+    private void OnAttached(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        // 设置是宿主构造之后才注入的，到挂上视觉树时肯定已经有了。
+        if (Settings != null)
+        {
+            ViewModel.AttachSettings(Settings);
+        }
+
+        _ = ViewModel.RefreshAsync();
+        RestartTimer();
+    }
+
+    /// <summary>按当前的刷新间隔重建计时器。</summary>
+    private void RestartTimer()
+    {
+        _timer?.Stop();
+        _timer = null;
+
+        var minutes = Settings?.RefreshIntervalMinutes ?? 15;
+        if (minutes <= 0)
+        {
+            return;
+        }
+
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(minutes) };
+        _timer.Tick += (_, _) => _ = ViewModel.RefreshAsync();
+        _timer.Start();
+    }
+
+    private void OnDetached(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        _timer?.Stop();
+        _timer = null;
+    }
+}

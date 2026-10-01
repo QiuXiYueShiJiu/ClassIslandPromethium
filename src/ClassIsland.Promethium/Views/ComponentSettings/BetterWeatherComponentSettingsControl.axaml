@@ -1,0 +1,72 @@
+<controls:ComponentBase x:TypeArguments="models:BetterWeatherSettings"
+                        x:Class="ClassIsland.Promethium.Views.ComponentSettings.BetterWeatherComponentSettingsControl"
+                        xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                        xmlns:local="clr-namespace:ClassIsland.Promethium.Views.ComponentSettings"
+                        xmlns:controls="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+                        xmlns:models="clr-namespace:ClassIsland.Promethium.Models"
+                        xmlns:ci="http://classisland.tech/schemas/xaml/core"
+                        xmlns:fa="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
+                        mc:Ignorable="d"
+                        d:DesignHeight="450" d:DesignWidth="800">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:BetterWeatherComponentSettingsControl}}">
+        <StackPanel Classes="component-settings-container animated-intro" Margin="0">
+            <fa:InfoBar Severity="Informational"
+                        IsOpen="True"
+                        IsClosable="False"
+                        Message="这里只管组件显示什么。要改城市、用地图选点，请到【设置 → Pm优化 → 更好的天气】。" />
+
+            <fa:SettingsExpander IconSource="{ci:FluentIconSource &#xEFD7;}"
+                                 Header="显示位置名"
+                                 Description="在组件上显示反查到的街道级地点名。">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding Settings.ShowLocationName, Mode=TwoWay}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <fa:SettingsExpander IconSource="{ci:FluentIconSource &#xF45A;}"
+                                 Header="显示今日温度范围"
+                                 Description="显示今天的最低温和最高温。">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding Settings.ShowDailyRange, Mode=TwoWay}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <fa:SettingsExpander IconSource="{ci:FluentIconSource &#xEFD7;}"
+                                 Header="逐项显示开关"
+                                 Description="控制组件上还额外显示哪些气象要素。"
+                                 IsExpanded="True">
+                <fa:SettingsExpanderItem Content="湿度" Description="相对湿度百分比。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Settings.ShowHumidity, Mode=TwoWay}" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+                <fa:SettingsExpanderItem Content="风力" Description="风向与风力等级。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Settings.ShowWind, Mode=TwoWay}" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+                <fa:SettingsExpanderItem Content="体感温度" Description="考虑湿度与风速后的体感温度。">
+                    <fa:SettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Settings.ShowFeelsLike, Mode=TwoWay}" />
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+            </fa:SettingsExpander>
+
+            <fa:SettingsExpander IconSource="{ci:FluentIconSource &#xF13D;}"
+                                 Header="刷新间隔"
+                                 Description="每隔多少分钟重新获取一次天气。填 0 表示不自动刷新。">
+                <fa:SettingsExpander.Footer>
+                    <fa:NumberBox Value="{Binding Settings.RefreshIntervalMinutes, Mode=TwoWay}"
+                                  Minimum="0" Maximum="360"
+                                  SmallChange="5" LargeChange="15"
+                                  SpinButtonPlacementMode="Compact"
+                                  MinWidth="120" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+        </StackPanel>
+    </ScrollViewer>
+</controls:ComponentBase>

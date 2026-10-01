@@ -1,0 +1,48 @@
+<controls:ComponentBase x:TypeArguments="models:BetterWeatherSettings"
+                        x:Class="ClassIsland.Promethium.Components.BetterWeatherComponent"
+                        xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                        xmlns:controls="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+                        xmlns:models="clr-namespace:ClassIsland.Promethium.Models"
+                        xmlns:ci="http://classisland.tech/schemas/xaml/core"
+                        mc:Ignorable="d"
+                        ClipToBounds="False">
+    <StackPanel x:Name="Root"
+                Orientation="Horizontal"
+                Spacing="6"
+                Classes="items-valign-center">
+        <ci:FluentIcon Glyph="{Binding Glyph}"
+                       Height="22" Width="22" FontSize="22"
+                       VerticalAlignment="Center" />
+        <TextBlock Text="{Binding TemperatureText}" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding WeatherText}"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource MainWindowSecondaryFontSize}" />
+        <TextBlock Text="{Binding TodayRangeText}"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource MainWindowSecondaryFontSize}"
+                   IsVisible="{Binding Settings.ShowDailyRange}" />
+        <TextBlock Text="{Binding HumidityText}"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource MainWindowSecondaryFontSize}"
+                   IsVisible="{Binding Settings.ShowHumidity}" />
+        <TextBlock Text="{Binding WindText}"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource MainWindowSecondaryFontSize}"
+                   IsVisible="{Binding Settings.ShowWind}" />
+        <TextBlock Text="{Binding FeelsLikeText}"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource MainWindowSecondaryFontSize}"
+                   IsVisible="{Binding Settings.ShowFeelsLike}" />
+        <TextBlock Text="{Binding LocationText}"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource MainWindowSecondaryFontSize}"
+                   IsVisible="{Binding Settings.ShowLocationName}" />
+        <TextBlock Text="{Binding StatusText}"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource MainWindowSecondaryFontSize}"
+                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+    </StackPanel>
+</controls:ComponentBase>
