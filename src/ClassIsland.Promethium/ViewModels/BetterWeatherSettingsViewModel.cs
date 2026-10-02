@@ -108,6 +108,41 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
         set => Weather.SetApiKey(Weather.Provider, value ?? string.Empty);
     }
 
+    /// <summary>底图选择的索引（枚举顺序与下拉框顺序一致）。</summary>
+    public int SelectedMapTileSourceIndex
+    {
+        get => (int)Weather.MapTileSource;
+        set
+        {
+            if (value >= 0 && value <= (int)MapTileSource.None)
+            {
+                Weather.MapTileSource = (MapTileSource)value;
+                OnPropertyChanged(nameof(IsCustomTileSource));
+            }
+        }
+    }
+
+    /// <summary>当前是不是自定义底图（决定要不要显示地址与基准输入框）。</summary>
+    public bool IsCustomTileSource => Weather.MapTileSource == MapTileSource.Custom;
+
+    /// <summary>当前选中的坐标基准索引。</summary>
+    public int SelectedTileDatumIndex
+    {
+        get => (int)Weather.CustomTileDatum;
+        set
+        {
+            if (value >= 0 && value <= (int)TileDatum.Bd09)
+            {
+                Weather.CustomTileDatum = (TileDatum)value;
+            }
+        }
+    }
+
+    /// <summary>国内底图的坐标基准说明，避免用户以为选错了。</summary>
+    public string TileDatumHint =>
+        "高德、腾讯用 GCJ-02，百度用 BD-09，OpenStreetMap 用 WGS84。" +
+        "选错基准标记会偏出几百米。配置里始终保存 WGS84，换底图不会把已选的点挪走。";
+
     /// <summary>当前是不是用系统字形。</summary>
     public bool IsGlyphMode => Weather.IconMode == WeatherIconMode.SystemGlyph;
 
@@ -288,6 +323,9 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
     public void NotifySelectionRefresh()
     {
         OnPropertyChanged(nameof(SelectedWeatherProvider));
+        OnPropertyChanged(nameof(SelectedMapTileSourceIndex));
+        OnPropertyChanged(nameof(IsCustomTileSource));
+        OnPropertyChanged(nameof(SelectedTileDatumIndex));
         OnPropertyChanged(nameof(SelectedIconModeIndex));
         OnPropertyChanged(nameof(SelectedDeliveryIndex));
     }

@@ -41,6 +41,11 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
         Map.SetView(ViewModel.Weather.Latitude, ViewModel.Weather.Longitude, 15);
         Map.LocationPicked += async (_, e) => await ViewModel.PickAsync(e.Latitude, e.Longitude);
 
+        // 关键一步：把配置里的底图候选交给地图控件。
+        // 之前漏了这句，导致底图规则一直是空的，地图上只画得出网格和标记。
+        ApplyTileSource();
+        Map.TileStatusChanged += (_, _) => UpdateTileStatusText();
+
         CandidateList.SelectionChanged += async (_, _) =>
         {
             if (CandidateList.SelectedItem is PlaceCandidate candidate)
@@ -50,7 +55,8 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
             }
         };
 
-        // 直接改经纬度时地图跟着走，不然数字和地图会对不上
+        // 直接改经纬度时地图跟着走，不然数字和地图会对不上；
+        // 改底图相关设置时立刻换源，不用等重开页面。
         ViewModel.Weather.PropertyChanged += OnWeatherConfigChanged;
     }
 
@@ -60,6 +66,41 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
         {
             Map.SetView(ViewModel.Weather.Latitude, ViewModel.Weather.Longitude);
         }
+
+        if (e.PropertyName is nameof(WeatherConfig.MapTileSource) or nameof(WeatherConfig.CustomTileUrl)
+            or nameof(WeatherConfig.CustomTileDatum) or nameof(WeatherConfig.CustomTileAttribution))
+        {
+            ApplyTileSource();
+        }
+    }
+
+    /// <summary>把当前配置解析成底图候选交给地图控件，并刷新署名与状态。</summary>
+    private void ApplyTileSource()
+    {
+        Map.Configure(MapTileCatalog.ResolveChain(ViewModel.Weather), string.Empty);
+        AttributionText.Text = Map.Attribution;
+        UpdateTileStatusText();
+    }
+
+    private void UpdateTileStatusText()
+    {
+        var status = Map.DescribeTileStatus();
+        if (!string.IsNullOrEmpty(status))
+        {
+            ViewModel.StatusText = status;
+        }
+    }
+
+    private void OnZoomIn(object? sender, RoutedEventArgs e) => Map.ZoomIn();
+
+    private void OnZoomOut(object? sender, RoutedEventArgs e) => Map.ZoomOut();
+
+    private void OnResetView(object? sender, RoutedEventArgs e) => Map.ResetView();
+
+    private void OnReloadTiles(object? sender, RoutedEventArgs e)
+    {
+        Map.ReloadTiles();
+        ViewModel.StatusText = "已重新加载底图。";
     }
 
     private void OnOpenApiKeyPage(object? sender, RoutedEventArgs e) => _ = OpenApiKeyPageAsync();

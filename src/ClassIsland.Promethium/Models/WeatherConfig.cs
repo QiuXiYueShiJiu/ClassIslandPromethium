@@ -82,13 +82,11 @@ public partial class WeatherConfig : ObservableObject
 
     // ---------- 地图底图 ----------
 
-    /// <summary>底图用哪一家。</summary>
+    /// <summary>
+    /// 底图用哪一家。默认按优先级自动挑：高德 → 百度 → 腾讯 → OpenStreetMap。
+    /// </summary>
     [ObservableProperty]
-    private MapTileSource _mapTileSource = MapTileSource.OpenStreetMap;
-
-    /// <summary>天地图的免费密钥。</summary>
-    [ObservableProperty]
-    private string _tiandituKey = string.Empty;
+    private MapTileSource _mapTileSource = MapTileSource.Auto;
 
     /// <summary>自定义底图地址模板，须含 {z} {x} {y}。</summary>
     [ObservableProperty]
@@ -97,6 +95,10 @@ public partial class WeatherConfig : ObservableObject
     /// <summary>自定义底图要显示的版权署名。</summary>
     [ObservableProperty]
     private string _customTileAttribution = string.Empty;
+
+    /// <summary>自定义底图用的坐标基准，填错了标记会偏。</summary>
+    [ObservableProperty]
+    private TileDatum _customTileDatum = TileDatum.Wgs84;
 
     // ---------- 图标 ----------
 

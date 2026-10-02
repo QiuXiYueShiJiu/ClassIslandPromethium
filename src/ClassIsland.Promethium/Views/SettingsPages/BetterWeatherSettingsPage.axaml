@@ -39,6 +39,45 @@
                         </Grid>
                     </Border>
 
+                    <!-- 底图控制：换源、缩放、重载。这排东西是修「地图一片空白」时加的，
+                         没有它们就只能干看着一块空图不知道该怎么办。 -->
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="底图" VerticalAlignment="Center" />
+                        <ComboBox x:Name="TileSourceBox" MinWidth="200"
+                                  SelectedIndex="{Binding SelectedMapTileSourceIndex, Mode=TwoWay}">
+                            <ComboBoxItem>自动（高德 → 百度 → 腾讯 → OSM）</ComboBoxItem>
+                            <ComboBoxItem>高德</ComboBoxItem>
+                            <ComboBoxItem>百度</ComboBoxItem>
+                            <ComboBoxItem>腾讯</ComboBoxItem>
+                            <ComboBoxItem>OpenStreetMap</ComboBoxItem>
+                            <ComboBoxItem>自定义地址</ComboBoxItem>
+                            <ComboBoxItem>不用底图</ComboBoxItem>
+                        </ComboBox>
+                        <Button Content="－" Click="OnZoomOut" ToolTip.Tip="缩小" />
+                        <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="放大" />
+                        <Button Content="回到标记" Click="OnResetView" />
+                        <Button Content="重载底图" Click="OnReloadTiles" />
+                        <TextBlock x:Name="AttributionText" VerticalAlignment="Center"
+                                   FontSize="11" Opacity="0.7" Margin="6,0,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                IsVisible="{Binding IsCustomTileSource}">
+                        <TextBlock Text="地址模板" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding Weather.CustomTileUrl, Mode=TwoWay}" MinWidth="320"
+                                 Watermark="须含 {z} {x} {y}，可选 {s}" />
+                        <TextBlock Text="基准" VerticalAlignment="Center" />
+                        <ComboBox MinWidth="130" SelectedIndex="{Binding SelectedTileDatumIndex, Mode=TwoWay}">
+                            <ComboBoxItem>WGS84</ComboBoxItem>
+                            <ComboBoxItem>GCJ-02</ComboBoxItem>
+                            <ComboBoxItem>BD-09</ComboBoxItem>
+                        </ComboBox>
+                        <TextBox Text="{Binding Weather.CustomTileAttribution, Mode=TwoWay}" MinWidth="140"
+                                 Watermark="版权署名" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding TileDatumHint}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+
                     <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Opacity="0.85" />
 
                     <Grid ColumnDefinitions="Auto,*,Auto,*,Auto" RowDefinitions="Auto">

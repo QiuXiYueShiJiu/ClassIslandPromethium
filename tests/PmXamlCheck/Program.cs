@@ -244,7 +244,56 @@ internal static class Program
             });
         }
 
-        Section("十一、地理编码联调");
+        Section("十一、底图：默认必须有底图（这条是回归测试）");
+        Check("默认配置解析出的候选里至少有一个能取瓦片", () =>
+            MapTileCatalog.ResolveChain(new WeatherConfig()).Any(s => s.HasBasemap));
+        Check("自动模式的优先级是 高德 → 百度 → 腾讯 → OpenStreetMap", () =>
+            MapTileCatalog.ResolveChain(new WeatherConfig { MapTileSource = MapTileSource.Auto })
+                .Select(s => s.Name).SequenceEqual(new[] { "高德", "百度", "腾讯", "OpenStreetMap" }));
+        Check("MapPicker 不调 Configure 也自带底图（回归：曾经漏调导致地图只剩网格）", () =>
+            new ClassIsland.Promethium.Controls.MapPicker().ActiveTileSourceName != "不用底图");
+        Check("选「不用底图」时确实没有候选会去取瓦片", () =>
+            !MapTileCatalog.ResolveChain(new WeatherConfig { MapTileSource = MapTileSource.None })
+                .Any(s => s.HasBasemap));
+        Check("高德地址能替换掉全部占位符", () =>
+        {
+            var spec = MapTileCatalog.ResolveChain(new WeatherConfig { MapTileSource = MapTileSource.AMap })[0];
+            var url = MapTileCatalog.BuildUrl(spec, string.Empty, 15, 26979, 12415);
+            return url != null && !url.Contains('{')
+                   && url.Contains("x=26979") && url.Contains("y=12415") && url.Contains("z=15");
+        });
+        Check("各家的坐标基准标注正确", () =>
+            MapTileCatalog.ResolveChain(new WeatherConfig { MapTileSource = MapTileSource.AMap })[0].Datum == TileDatum.Gcj02
+            && MapTileCatalog.ResolveChain(new WeatherConfig { MapTileSource = MapTileSource.Tencent })[0].Datum == TileDatum.Gcj02
+            && MapTileCatalog.ResolveChain(new WeatherConfig { MapTileSource = MapTileSource.Baidu })[0].Datum == TileDatum.Bd09
+            && MapTileCatalog.ResolveChain(new WeatherConfig { MapTileSource = MapTileSource.OpenStreetMap })[0].Datum == TileDatum.Wgs84);
+        Check("不用底图时拼不出地址", () =>
+            MapTileCatalog.BuildUrl(MapTileSpec.None, string.Empty, 1, 1, 1) == null);
+        Check("自定义模板缺占位符会被拒绝", () =>
+            !MapTileCatalog.ValidateCustomTemplate("https://a.com/{z}/{x}.png", out _));
+
+        Section("十二、坐标基准换算（混用会让标记偏几百米）");
+        var (gcjLat, gcjLon) = ChinaCoordinate.Wgs84ToGcj02(39.9087, 116.3975);
+        Check($"北京 WGS84→GCJ-02 偏移经度约 0.006（实得 {gcjLon - 116.3975:0.000000}）",
+            () => Math.Abs(gcjLon - 116.3975 - 0.006) < 0.002 && Math.Abs(gcjLat - 39.9087 - 0.0015) < 0.002);
+        Check("GCJ-02 往返能回到 WGS84（误差 < 1e-6）", () =>
+        {
+            var (backLat, backLon) = ChinaCoordinate.Gcj02ToWgs84(gcjLat, gcjLon);
+            return Math.Abs(backLat - 39.9087) < 1e-6 && Math.Abs(backLon - 116.3975) < 1e-6;
+        });
+        Check("境外坐标不做偏移", () =>
+        {
+            var (lat, lon) = ChinaCoordinate.Wgs84ToGcj02(48.8566, 2.3522);
+            return Math.Abs(lat - 48.8566) < 1e-9 && Math.Abs(lon - 2.3522) < 1e-9;
+        });
+        Check("BD-09 往返能回到 WGS84（误差 < 1e-6）", () =>
+        {
+            var (bdLat, bdLon) = ChinaCoordinate.Wgs84ToBd09(39.9087, 116.3975);
+            var (backLat, backLon) = ChinaCoordinate.Bd09ToWgs84(bdLat, bdLon);
+            return Math.Abs(backLat - 39.9087) < 1e-6 && Math.Abs(backLon - 116.3975) < 1e-6;
+        });
+
+        Section("十三、地理编码联调");
         LiveCheck("逆地理编码（应能反查到北京一带）", () =>
         {
             var name = RunOffUiThread(() => geocoder.ReverseAsync(Lat, Lon));

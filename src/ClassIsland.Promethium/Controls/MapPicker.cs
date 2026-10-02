@@ -9,11 +9,12 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using ClassIsland.Promethium.Models;
 using ClassIsland.Promethium.Services;
 
 namespace ClassIsland.Promethium.Controls;
 
-/// <summary>地图上选好一个点时带出来的坐标。</summary>
+/// <summary>地图上选好一个点时带出来的坐标（WGS84）。</summary>
 public class MapLocationPickedEventArgs : EventArgs
 {
     public MapLocationPickedEventArgs(double latitude, double longitude)
@@ -22,10 +23,10 @@ public class MapLocationPickedEventArgs : EventArgs
         Longitude = longitude;
     }
 
-    /// <summary>纬度。</summary>
+    /// <summary>纬度（WGS84）。</summary>
     public double Latitude { get; }
 
-    /// <summary>经度。</summary>
+    /// <summary>经度（WGS84）。</summary>
     public double Longitude { get; }
 }
 
@@ -37,12 +38,13 @@ public class MapLocationPickedEventArgs : EventArgs
 /// 这么做有几个实在好处：不引入额外的原生依赖、不会因为 SDK 只支持某个平台就挂掉，
 /// 而且坐标换算全在明面上，出偏差一眼能查。
 /// <para/>
-/// <b>底图是可换的，而且失败会重试。</b>底图服务器没有全球都好用的——
-/// OpenStreetMap 在国内经常连不上，天地图反过来只服务国内。所以来源做成可配，
-/// 并且把「加载中 / 加载失败」直接画在图上：一片空白的方块没法排查，
-/// 写上失败原因才有得查。
+/// <b>底图是一串候选，会自己降级。</b>国内的高德、腾讯用 GCJ-02 坐标，
+/// 百度用 BD-09，OpenStreetMap 用 WGS84。不同基准直接混用会让标记偏出几百米，
+/// 所以投影前先按当前底图的基准换算，点选回来再换算成 WGS84——
+/// 配置里永远只存 WGS84，换个底图不会把你选的点挪走。
 /// <para/>
-/// 瓦片只在内存里缓存，不做磁盘持久化——这是设置页里的小地图，不是拿来做底图的。
+/// <b>默认就带底图。</b>以前这里要外部先调 <c>Configure</c> 才有瓦片，
+/// 结果忘了调就只画出一片网格。现在即使没人调，构造时也会装上一串默认候选。
 /// </remarks>
 public class MapPicker : Control
 {
@@ -51,10 +53,13 @@ public class MapPicker : Control
     private const int MaxZoom = 18;
 
     /// <summary>同一张瓦片最多重试几次。</summary>
-    private const int MaxAttempts = 4;
+    private const int MaxAttempts = 3;
+
+    /// <summary>连续这么多张瓦片失败就换下一个底图。</summary>
+    private const int FailuresBeforeSwitch = 4;
 
     /// <summary>两次重试之间至少隔这么久，别把人家服务器打爆。</summary>
-    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(10);
 
     /// <summary>缓存超过这个数量就丢掉非当前缩放级别的瓦片，避免一直平移把内存吃满。</summary>
     private const int TileCacheLimit = 256;
@@ -76,8 +81,12 @@ public class MapPicker : Control
 
     private readonly HashSet<(int Z, int X, int Y)> _pending = new();
 
-    private MapTileSpec _spec = new(string.Empty, string.Empty, string.Empty);
+    /// <summary>候选底图链，按优先级排。</summary>
+    private IReadOnlyList<MapTileSpec> _chain = new[] { MapTileSpec.None };
+    private int _chainIndex;
+    private MapTileSpec _spec = MapTileSpec.None;
     private string _apiKey = string.Empty;
+    private int _consecutiveFailures;
 
     private double _centerLatitude = 39.9042;
     private double _centerLongitude = 116.4074;
@@ -98,13 +107,18 @@ public class MapPicker : Control
     /// <summary>在地图上点选了一个点。</summary>
     public event EventHandler<MapLocationPickedEventArgs>? LocationPicked;
 
-    /// <summary>底图状态变了（加载中 / 失败 / 完成），界面可以据此更新提示。</summary>
+    /// <summary>底图状态变了（加载中 / 失败 / 换了源），界面可以据此更新提示。</summary>
     public event EventHandler? TileStatusChanged;
 
     public MapPicker()
     {
         ClipToBounds = true;
         Focusable = true;
+
+        // 内置一串默认候选：就算外面从来没有调过 Configure，
+        // 地图也照样有底图，不会退化成一片空白。
+        _chain = MapTileCatalog.ResolveChain(new WeatherConfig());
+        _spec = _chain[0];
     }
 
     private static HttpClient CreateClient()
@@ -114,33 +128,36 @@ public class MapPicker : Control
             new ProductInfoHeaderValue("ClassIsland-Promethium", "1.0"));
         client.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("(+https://github.com/QiuXiYueShiJiu/ClassIslandPromethium)"));
+        // 国内底图普遍校验 Referer，不带就只给空白占位图
+        client.DefaultRequestHeaders.Referrer = new Uri("https://www.amap.com/");
         return client;
     }
 
-    /// <summary>当前标记点的纬度。</summary>
+    /// <summary>当前标记点的纬度（WGS84）。</summary>
     public double MarkerLatitude => _markerLatitude;
 
-    /// <summary>当前标记点的经度。</summary>
+    /// <summary>当前标记点的经度（WGS84）。</summary>
     public double MarkerLongitude => _markerLongitude;
 
     /// <summary>当前缩放级别。</summary>
     public int ZoomLevel => _zoom;
 
+    /// <summary>当前实际在用的底图名。</summary>
+    public string ActiveTileSourceName => _spec.Name;
+
     /// <summary>当前底图的版权署名。</summary>
     public string Attribution => _spec.Attribution;
 
-    /// <summary>底图是不是还没弄好（加载中或者失败了）。</summary>
-    public bool HasTileTrouble => _spec.HasBasemap && (_pending.Count > 0 || _loadedCount == 0);
-
-    /// <summary>
-    /// 换一套底图。换完会清掉已缓存的瓦片，包括失败记录。
-    /// </summary>
-    /// <param name="spec">取图规则。</param>
-    /// <param name="apiKey">需要密钥的底图用它（天地图的 tk）。</param>
-    public void Configure(MapTileSpec spec, string apiKey)
+    /// <summary>换一串底图候选。会清掉已缓存的瓦片，包括失败记录。</summary>
+    /// <param name="chain">按优先级排的候选；空的话退回「不用底图」。</param>
+    /// <param name="apiKey">需要密钥的底图用它。</param>
+    public void Configure(IReadOnlyList<MapTileSpec> chain, string apiKey)
     {
-        _spec = spec;
+        _chain = chain is { Count: > 0 } ? chain : new[] { MapTileSpec.None };
         _apiKey = apiKey ?? string.Empty;
+        _chainIndex = 0;
+        _spec = _chain[0];
+        _consecutiveFailures = 0;
         ClearTileCaches();
         InvalidateVisual();
         TileStatusChanged?.Invoke(this, EventArgs.Empty);
@@ -150,11 +167,14 @@ public class MapPicker : Control
     /// 把底图重新拉一遍。
     /// </summary>
     /// <remarks>
-    /// 失败记录也要一起清掉——「重载」的意思就是当作没试过再来一次，
-    /// 否则用户点了重载却发现什么都没变。
+    /// 失败记录也要一起清掉，并且从头一个候选重新开始——
+    /// 「重载」的意思就是当作没试过再来一次，否则用户点了重载却发现什么都没变。
     /// </remarks>
     public void ReloadTiles()
     {
+        _chainIndex = 0;
+        _spec = _chain[0];
+        _consecutiveFailures = 0;
         ClearTileCaches();
         InvalidateVisual();
         TileStatusChanged?.Invoke(this, EventArgs.Empty);
@@ -174,7 +194,7 @@ public class MapPicker : Control
         InvalidateVisual();
     }
 
-    /// <summary>把地图移到指定位置。缩放为 null 时保持当前级别。</summary>
+    /// <summary>把地图移到指定位置（WGS84）。缩放为 null 时保持当前级别。</summary>
     public void SetView(double latitude, double longitude, int? zoom = null)
     {
         _markerLatitude = ClampLatitude(latitude);
@@ -200,18 +220,18 @@ public class MapPicker : Control
         if (_loadedCount == 0 && _failedCount > 0)
         {
             return string.IsNullOrEmpty(_lastError)
-                ? "底图加载失败，可换一个底图来源或点「重载底图」"
-                : $"底图加载失败：{_lastError}";
+                ? $"{_spec.Name} 底图加载失败"
+                : $"{_spec.Name} 底图加载失败：{_lastError}";
         }
 
         if (_pending.Count > 0)
         {
-            return $"底图加载中…（已加载 {_loadedCount} 张）";
+            return $"{_spec.Name} 底图加载中…（已加载 {_loadedCount} 张）";
         }
 
         if (_failedCount > 0)
         {
-            return $"部分底图瓦片加载失败（{_failedCount} 张），可点「重载底图」重试";
+            return $"{_spec.Name} 有 {_failedCount} 张瓦片未取到，可点「重载底图」重试";
         }
 
         return string.Empty;
@@ -233,6 +253,26 @@ public class MapPicker : Control
         _lastError = string.Empty;
     }
 
+    // ---------------- 坐标基准换算 ----------------
+
+    /// <summary>把 WGS84 的点换算成当前底图基准，用于投影。</summary>
+    private (double Latitude, double Longitude) Project(double latitude, double longitude) =>
+        _spec.Datum switch
+        {
+            TileDatum.Gcj02 => ChinaCoordinate.Wgs84ToGcj02(latitude, longitude),
+            TileDatum.Bd09 => ChinaCoordinate.Wgs84ToBd09(latitude, longitude),
+            _ => (latitude, longitude)
+        };
+
+    /// <summary>把当前底图基准的点换算回 WGS84，用于存配置。</summary>
+    private (double Latitude, double Longitude) Unproject(double latitude, double longitude) =>
+        _spec.Datum switch
+        {
+            TileDatum.Gcj02 => ChinaCoordinate.Gcj02ToWgs84(latitude, longitude),
+            TileDatum.Bd09 => ChinaCoordinate.Bd09ToWgs84(latitude, longitude),
+            _ => (latitude, longitude)
+        };
+
     // ---------------- 渲染 ----------------
 
     public override void Render(DrawingContext context)
@@ -247,8 +287,9 @@ public class MapPicker : Control
         context.FillRectangle(PlaceholderBrush, new Rect(size));
 
         var scale = 1 << _zoom;
-        var originX = LongitudeToWorldX(_centerLongitude, scale) - size.Width / 2;
-        var originY = LatitudeToWorldY(_centerLatitude, scale) - size.Height / 2;
+        var (centerLatitude, centerLongitude) = Project(_centerLatitude, _centerLongitude);
+        var originX = LongitudeToWorldX(centerLongitude, scale) - size.Width / 2;
+        var originY = LatitudeToWorldY(centerLatitude, scale) - size.Height / 2;
 
         // 经纬网格先画，瓦片盖在上面。这样底图没加载出来时也不是一片空白，
         // 至少能看出地图在动、能对着网格估个大概位置。
@@ -338,8 +379,9 @@ public class MapPicker : Control
 
     private void DrawMarker(DrawingContext context, Size size, double originX, double originY, int scale)
     {
-        var x = LongitudeToWorldX(_markerLongitude, scale) - originX;
-        var y = LatitudeToWorldY(_markerLatitude, scale) - originY;
+        var (markerLatitude, markerLongitude) = Project(_markerLatitude, _markerLongitude);
+        var x = LongitudeToWorldX(markerLongitude, scale) - originX;
+        var y = LatitudeToWorldY(markerLatitude, scale) - originY;
         if (x < -20 || y < -20 || x > size.Width + 20 || y > size.Height + 20)
         {
             return;
@@ -353,7 +395,7 @@ public class MapPicker : Control
         context.DrawEllipse(MarkerRingBrush, MarkerPen, center, 7, 7);
         context.DrawEllipse(MarkerBrush, null, center, 4.5, 4.5);
 
-        // 坐标贴在标记旁边，省得人选完还要去别处核对
+        // 坐标贴的是 WGS84 的值，和配置里存的一致，省得人对不上
         DrawLabel(context, $"{_markerLatitude:0.0000}, {_markerLongitude:0.0000}", x + 10, y + 10, size);
     }
 
@@ -455,6 +497,7 @@ public class MapPicker : Control
                     _tiles[key] = new Bitmap(stream);
                     _failures.Remove(key);
                     _loadedCount++;
+                    _consecutiveFailures = 0;
                     TrimCacheIfNeeded();
                 }
                 catch (Exception ex)
@@ -486,10 +529,21 @@ public class MapPicker : Control
         if (attempts == 1)
         {
             _failedCount++;
+            _consecutiveFailures++;
         }
 
         _failures[key] = (attempts, DateTime.UtcNow);
         _lastError = reason;
+
+        // 这个源连续失败到一定数量，就换下一个候选
+        if (_consecutiveFailures >= FailuresBeforeSwitch && _chainIndex + 1 < _chain.Count)
+        {
+            _chainIndex++;
+            _spec = _chain[_chainIndex];
+            _consecutiveFailures = 0;
+            ClearTileCaches();
+            _lastError = $"上一个底图不可用，已切换到 {_spec.Name}";
+        }
     }
 
     /// <summary>缓存太大时丢掉非当前缩放级别的瓦片，免得一路平移把内存吃满。</summary>
@@ -520,8 +574,9 @@ public class MapPicker : Control
         _dragStart = point;
         _dragged = false;
         var scale = 1 << _zoom;
-        _dragStartWorldX = LongitudeToWorldX(_centerLongitude, scale);
-        _dragStartWorldY = LatitudeToWorldY(_centerLatitude, scale);
+        var (centerLatitude, centerLongitude) = Project(_centerLatitude, _centerLongitude);
+        _dragStartWorldX = LongitudeToWorldX(centerLongitude, scale);
+        _dragStartWorldY = LatitudeToWorldY(centerLatitude, scale);
         e.Pointer.Capture(this);
         e.Handled = true;
     }
@@ -548,8 +603,10 @@ public class MapPicker : Control
         }
 
         var scale = 1 << _zoom;
-        _centerLongitude = WorldXToLongitude(_dragStartWorldX - deltaX, scale);
-        _centerLatitude = WorldYToLatitude(_dragStartWorldY - deltaY, scale);
+        var datumLongitude = WorldXToLongitude(_dragStartWorldX - deltaX, scale);
+        var datumLatitude = WorldYToLatitude(_dragStartWorldY - deltaY, scale);
+        // 平移算出来的是底图基准的坐标，存回配置前要换回 WGS84
+        (_centerLatitude, _centerLongitude) = Unproject(datumLatitude, datumLongitude);
         InvalidateVisual();
         e.Handled = true;
     }
@@ -574,11 +631,16 @@ public class MapPicker : Control
 
         var size = Bounds.Size;
         var scale = 1 << _zoom;
-        var originX = LongitudeToWorldX(_centerLongitude, scale) - size.Width / 2;
-        var originY = LatitudeToWorldY(_centerLatitude, scale) - size.Height / 2;
+        var (centerLatitude, centerLongitude) = Project(_centerLatitude, _centerLongitude);
+        var originX = LongitudeToWorldX(centerLongitude, scale) - size.Width / 2;
+        var originY = LatitudeToWorldY(centerLatitude, scale) - size.Height / 2;
 
-        _markerLongitude = ClampLongitude(WorldXToLongitude(originX + start.X, scale));
-        _markerLatitude = ClampLatitude(WorldYToLatitude(originY + start.Y, scale));
+        var datumLongitude = WorldXToLongitude(originX + start.X, scale);
+        var datumLatitude = WorldYToLatitude(originY + start.Y, scale);
+        var (latitude, longitude) = Unproject(datumLatitude, datumLongitude);
+
+        _markerLatitude = ClampLatitude(latitude);
+        _markerLongitude = ClampLongitude(longitude);
         InvalidateVisual();
         LocationPicked?.Invoke(this, new MapLocationPickedEventArgs(_markerLatitude, _markerLongitude));
         e.Handled = true;
@@ -615,8 +677,9 @@ public class MapPicker : Control
         }
 
         var oldScale = 1 << _zoom;
-        var oldOriginX = LongitudeToWorldX(_centerLongitude, oldScale) - size.Width / 2;
-        var oldOriginY = LatitudeToWorldY(_centerLatitude, oldScale) - size.Height / 2;
+        var (oldCenterLatitude, oldCenterLongitude) = Project(_centerLatitude, _centerLongitude);
+        var oldOriginX = LongitudeToWorldX(oldCenterLongitude, oldScale) - size.Width / 2;
+        var oldOriginY = LatitudeToWorldY(oldCenterLatitude, oldScale) - size.Height / 2;
 
         var anchorLongitude = WorldXToLongitude(oldOriginX + anchor.X, oldScale);
         var anchorLatitude = WorldYToLatitude(oldOriginY + anchor.Y, oldScale);
@@ -626,8 +689,9 @@ public class MapPicker : Control
         var newAnchorX = LongitudeToWorldX(anchorLongitude, newScale);
         var newAnchorY = LatitudeToWorldY(anchorLatitude, newScale);
 
-        _centerLongitude = WorldXToLongitude(newAnchorX - anchor.X + size.Width / 2, newScale);
-        _centerLatitude = WorldYToLatitude(newAnchorY - anchor.Y + size.Height / 2, newScale);
+        var datumLongitude = WorldXToLongitude(newAnchorX - anchor.X + size.Width / 2, newScale);
+        var datumLatitude = WorldYToLatitude(newAnchorY - anchor.Y + size.Height / 2, newScale);
+        (_centerLatitude, _centerLongitude) = Unproject(datumLatitude, datumLongitude);
 
         InvalidateVisual();
         TileStatusChanged?.Invoke(this, EventArgs.Empty);
