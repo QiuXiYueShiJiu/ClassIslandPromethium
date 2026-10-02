@@ -17,7 +17,7 @@ using ClassIsland.Promethium.Views.SettingsPages;
 internal static class Program
 {
     private static int _failures;
-    private const double Lat = 39.9042, Lon = 116.4074;
+    private const double Lat = 39.9042, Lon = 116.4074;   // 中性测试点
     private const double UsLat = 40.7128, UsLon = -74.0060;   // 纽约，给 NWS 用
 
     private static int Main()
@@ -212,11 +212,11 @@ internal static class Program
         {
             var name = RunOffUiThread(() => geocoder.ReverseAsync(Lat, Lon));
             Console.WriteLine($"        {name}");
-            return name.Contains("北京") || name.Contains("北京");
+            return name.Contains("北京") || name.Contains("东城");
         });
-        LiveCheck("地名搜索（应能搜到镇一级）", () =>
+        LiveCheck("地名搜索（用公开地标验证）", () =>
         {
-            var results = RunOffUiThread(() => geocoder.SearchAsync("某某镇"));
+            var results = RunOffUiThread(() => geocoder.SearchAsync("天安门"));
             Console.WriteLine($"        找到 {results.Count} 条，首条：{(results.Count > 0 ? results[0].DisplayName : "无")}");
             return results.Count > 0;
         });

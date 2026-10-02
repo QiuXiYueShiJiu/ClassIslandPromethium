@@ -26,7 +26,13 @@ public partial class WeatherConfig : ObservableObject
     [ObservableProperty]
     private string _locationName = "北京市东城区";
 
-    /// <summary>用户是否动手选过位置。</summary>
+    /// <summary>
+    /// 用户是否动手选过位置。
+    /// </summary>
+    /// <remarks>
+    /// 默认给一个中性位置（北京市中心）只是为了让界面一打开就有东西可看，
+    /// 并不代表用户在那儿。这个标记用来提示他还没选过自己的位置。
+    /// </remarks>
     [ObservableProperty]
     private bool _isLocationPicked;
 
@@ -73,6 +79,26 @@ public partial class WeatherConfig : ObservableObject
     /// <summary>emoji 模式用的字体。</summary>
     [ObservableProperty]
     private string _emojiFontFamily = "Segoe UI Emoji";
+
+    // ---------- 地图底图 ----------
+
+    /// <summary>底图用哪一家。</summary>
+    [ObservableProperty]
+    private MapTileSource _mapTileSource = MapTileSource.OpenStreetMap;
+
+    /// <summary>天地图的免费密钥。</summary>
+    [ObservableProperty]
+    private string _tiandituKey = string.Empty;
+
+    /// <summary>自定义底图地址模板，须含 {z} {x} {y}。</summary>
+    [ObservableProperty]
+    private string _customTileUrl = string.Empty;
+
+    /// <summary>自定义底图要显示的版权署名。</summary>
+    [ObservableProperty]
+    private string _customTileAttribution = string.Empty;
+
+    // ---------- 图标 ----------
 
     /// <summary>自定义图片模式用的目录。</summary>
     [ObservableProperty]
