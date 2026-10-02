@@ -23,8 +23,8 @@ public record WeatherProviderInfo(
 /// 所有可用天气数据源的台账，以及按标识取实例。
 /// </summary>
 /// <remarks>
-/// 列表顺序必须和 <see cref="WeatherProviderKind"/> 的枚举顺序一致——
-/// 设置页的下拉框是按索引对齐的。
+/// 列表顺序只影响下拉框里的排列（免密钥的排前面更好找）。
+/// 设置页绑的是数据源对象本身而不是索引，所以顺序错位不会导致选错源。
 /// </remarks>
 public class WeatherProviderCatalog
 {
@@ -49,6 +49,16 @@ public class WeatherProviderCatalog
         new WeatherProviderInfo(WeatherProviderKind.Nws, "NWS（仅美国）",
             "美国国家气象局官方数据，质量高、免密钥。只覆盖美国，其他坐标会直接报错。",
             false, string.Empty, "仅美国"),
+
+        new WeatherProviderInfo(WeatherProviderKind.BrightSky, "DWD 德国",
+            "德国气象局观测，经纬度直查、免密钥。只覆盖德国，其他坐标会给出提示。不给当日温度范围和体感温度。",
+            false, string.Empty, "仅德国"),
+        new WeatherProviderInfo(WeatherProviderKind.NeaSingapore, "NEA 新加坡",
+            "新加坡国家环境局，免密钥。逐个要素并发取最近站点；它没有天空状况字段，所以天气现象只能靠有没有降雨推断。只覆盖新加坡。",
+            false, string.Empty, "仅新加坡"),
+        new WeatherProviderInfo(WeatherProviderKind.Estonia, "爱沙尼亚",
+            "爱沙尼亚气象局，免密钥。一次拉回全国站点挑最近的，观测站较稀疏（可能几十公里外）。只覆盖爱沙尼亚。",
+            false, string.Empty, "仅爱沙尼亚"),
 
         // ---------- 需要密钥 ----------
         new WeatherProviderInfo(WeatherProviderKind.QWeather, "和风天气",

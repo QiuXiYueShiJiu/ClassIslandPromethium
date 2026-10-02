@@ -48,6 +48,9 @@ public class PromethiumPlugin : PluginBase
         services.AddSingleton<WeatherbitProvider>();
         services.AddSingleton<VisualCrossingProvider>();
         services.AddSingleton<TomorrowIoProvider>();
+        services.AddSingleton<BrightSkyProvider>();
+        services.AddSingleton<NeaSingaporeProvider>();
+        services.AddSingleton<EstoniaProvider>();
         services.AddSingleton(sp => new WeatherProviderCatalog(new IWeatherProvider[]
         {
             sp.GetRequiredService<OpenMeteoProvider>(),
@@ -61,7 +64,10 @@ public class PromethiumPlugin : PluginBase
             sp.GetRequiredService<WeatherApiProvider>(),
             sp.GetRequiredService<WeatherbitProvider>(),
             sp.GetRequiredService<VisualCrossingProvider>(),
-            sp.GetRequiredService<TomorrowIoProvider>()
+            sp.GetRequiredService<TomorrowIoProvider>(),
+            sp.GetRequiredService<BrightSkyProvider>(),
+            sp.GetRequiredService<NeaSingaporeProvider>(),
+            sp.GetRequiredService<EstoniaProvider>()
         }));
 
 

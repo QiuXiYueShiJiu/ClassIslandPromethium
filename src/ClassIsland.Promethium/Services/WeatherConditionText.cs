@@ -60,7 +60,8 @@ public static class WeatherConditionText
         if (t.Contains("overcast")) return WeatherCondition.Overcast;
         // 「partly cloudy」也含「cloudy」，所以必须先判 partly
         if (t.Contains("partly") || t.Contains("mostly clear") || t.Contains("scattered")) return WeatherCondition.PartlyCloudy;
-        if (t.Contains("cloudy")) return WeatherCondition.Cloudy;
+        // 用 cloud 而不是 cloudy：「Variable clouds」「variable cloud」这类也要认
+        if (t.Contains("cloud")) return WeatherCondition.Cloudy;
         if (t.Contains("clear") || t.Contains("sunny") || t.Contains("fair")) return WeatherCondition.Clear;
         return WeatherCondition.Unknown;
     }

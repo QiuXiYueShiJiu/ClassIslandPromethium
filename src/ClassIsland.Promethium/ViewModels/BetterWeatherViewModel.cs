@@ -257,7 +257,9 @@ public partial class BetterWeatherViewModel : ObservableObject
         ConditionText = WeatherText.Describe(snapshot.Condition);
         TemperatureText = Format(snapshot.Temperature, "°");
         FeelsLikeText = "体感 " + Format(snapshot.FeelsLike, "°");
-        HumidityText = "湿度 " + Format(snapshot.Humidity, "%");
+        // 有些观测源不给湿度。0% 在物理上不可能，所以 0 一律当作「没给」，
+        // 显示成 -- 而不是编一个 0% 出来。
+        HumidityText = snapshot.Humidity > 0 ? "湿度 " + Format(snapshot.Humidity, "%") : "湿度 --";
         WindText = snapshot.WindDirection < 0
             ? Format(snapshot.WindSpeed, " km/h")
             : WeatherText.Direction(snapshot.WindDirection) + "风 " + Format(snapshot.WindSpeed, " km/h");

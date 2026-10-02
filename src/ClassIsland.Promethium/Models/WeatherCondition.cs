@@ -73,5 +73,17 @@ public enum WeatherProviderKind
     VisualCrossing = 10,
 
     /// <summary>Tomorrow.io。</summary>
-    TomorrowIo = 11
+    TomorrowIo = 11,
+
+    // ---------- 各国气象部门（免密钥）----------
+    // 新增值一律追加在末尾：已有值改了数字，用户存下来的选择就会指到别的源上。
+
+    /// <summary>德国气象局（DWD），经 Bright Sky 提供，经纬度直查。</summary>
+    BrightSky = 12,
+
+    /// <summary>新加坡国家环境局（NEA），按最近站点取数。</summary>
+    NeaSingapore = 13,
+
+    /// <summary>爱沙尼亚气象局，按最近站点取数。</summary>
+    Estonia = 14
 }

@@ -38,7 +38,8 @@ internal static class Program
             new SevenTimerProvider(), new NwsProvider(),
             new QWeatherProvider(), new SeniverseProvider(), new OpenWeatherMapProvider(),
             new WeatherApiProvider(), new WeatherbitProvider(), new VisualCrossingProvider(),
-            new TomorrowIoProvider()
+            new TomorrowIoProvider(),
+            new BrightSkyProvider(), new NeaSingaporeProvider(), new EstoniaProvider()
         };
         var catalog = new WeatherProviderCatalog(allProviders);
         var monitor = new WeatherMonitor(catalog, store, alerts);
@@ -55,9 +56,15 @@ internal static class Program
             new BetterWeatherComponent(monitor, store, alerts).Content != null);
 
         Section("二、数据源台账完整性");
-        Check($"共登记 {catalog.All.Count} 个数据源（应为 12）", () => catalog.All.Count == 12);
-        Check("台账顺序与枚举顺序逐项一致（下拉框按索引对齐，错位就会选错源）", () =>
-            catalog.All.Select((info, i) => (int)info.Kind == i).All(x => x));
+        Check($"共登记 {catalog.All.Count} 个数据源（应为 15）", () => catalog.All.Count == 15);
+        Check("每个枚举值在台账里恰好出现一次（不漏不重）", () =>
+            catalog.All.Select(i => i.Kind).OrderBy(k => k)
+                .SequenceEqual(Enum.GetValues<WeatherProviderKind>().OrderBy(k => k)));
+        Check("免密钥的排在下拉框前面，便于查找", () =>
+        {
+            var firstKeyed = catalog.All.ToList().FindIndex(i => i.RequiresApiKey);
+            return firstKeyed > 0 && catalog.All.Skip(firstKeyed).All(i => i.RequiresApiKey);
+        });
         Check("每个枚举值都能解析出实例", () =>
             Enum.GetValues<WeatherProviderKind>().All(k => catalog.Resolve(k).Kind == k));
         Check("免密钥的不该有申请地址", () =>
@@ -67,7 +74,10 @@ internal static class Program
         Check("接口声明的 RequiresApiKey 与台账一致", () =>
             catalog.All.All(i => catalog.Resolve(i.Kind).RequiresApiKey == i.RequiresApiKey));
         Check($"免密钥 {catalog.All.Count(i => !i.RequiresApiKey)} 个 / 需密钥 {catalog.All.Count(i => i.RequiresApiKey)} 个",
-            () => catalog.All.Count(i => !i.RequiresApiKey) == 5 && catalog.All.Count(i => i.RequiresApiKey) == 7);
+            () => catalog.All.Count(i => !i.RequiresApiKey) == 8 && catalog.All.Count(i => i.RequiresApiKey) == 7);
+        Check("国家级源都标了覆盖范围，不能让人以为全球可用", () =>
+            catalog.All.Where(i => i.Region.StartsWith("仅") || i.Region.Contains("优化"))
+                .All(i => !string.IsNullOrWhiteSpace(i.Region)));
 
         Section("三、报警判定：绝不能无中生有");
         var mild = new WeatherSnapshot
@@ -188,26 +198,53 @@ internal static class Program
             reloaded.Weather.GetApiKey(WeatherProviderKind.MetNorway) == string.Empty);
 
         Section("九、免密钥数据源联网实测（真实返回验证解析）");
-        foreach (var p in allProviders.Where(x => !x.RequiresApiKey && x.Kind != WeatherProviderKind.Nws))
+        // 各国气象部门的服务只覆盖本国，必须用对应国家的坐标去测
+        var testPoints = new Dictionary<WeatherProviderKind, (double Lat, double Lon)>
         {
-            LiveCheck($"天气源 {p.DisplayName}", () => CheckProvider(p, Lat, Lon));
-        }
-        LiveCheck("天气源 NWS（用纽约坐标）", () => CheckProvider(new NwsProvider(), UsLat, UsLon));
-        LiveCheck("NWS 对非美国坐标给出可读提示而不是 404", () =>
-        {
-            try
-            {
-                RunOffUiThread(() => new NwsProvider().QueryAsync(new WeatherQuery(Lat, Lon)));
-                return false;
-            }
-            catch (InvalidOperationException ex)
-            {
-                Console.WriteLine($"        {ex.Message}");
-                return ex.Message.Contains("美国");
-            }
-        });
+            [WeatherProviderKind.Nws] = (UsLat, UsLon),              // 纽约
+            [WeatherProviderKind.BrightSky] = (52.52, 13.405),       // 柏林
+            [WeatherProviderKind.NeaSingapore] = (1.3521, 103.8198), // 新加坡
+            [WeatherProviderKind.Estonia] = (59.437, 24.7536)        // 塔林
+        };
 
-        Section("十、地理编码联调");
+        // 这两个源官方就不发布天空状况（NEA 只有降雨、爱沙尼亚部分站缺现象字段），
+        // 显示「未知」是诚实的，不能拿它当失败。它们只强制要求温度是真的。
+        var mayLackCondition = new HashSet<WeatherProviderKind>
+        {
+            WeatherProviderKind.NeaSingapore, WeatherProviderKind.Estonia
+        };
+
+        foreach (var p in allProviders.Where(x => !x.RequiresApiKey))
+        {
+            var point = testPoints.TryGetValue(p.Kind, out var custom) ? custom : (Lat, Lon);
+            var requireCondition = !mayLackCondition.Contains(p.Kind);
+            LiveCheck($"天气源 {p.DisplayName}", () => CheckProvider(p, point.Lat, point.Lon, requireCondition));
+        }
+
+        Section("十、只覆盖本国的源，必须给出可读提示而不是甩错误码");
+        foreach (var (provider, keyword) in new (IWeatherProvider, string)[]
+                 {
+                     (new NwsProvider(), "美国"),
+                     (new BrightSkyProvider(), "德国"),
+                     (new NeaSingaporeProvider(), "新加坡")
+                 })
+        {
+            LiveCheck($"{provider.DisplayName} 对境外坐标的提示", () =>
+            {
+                try
+                {
+                    RunOffUiThread(() => provider.QueryAsync(new WeatherQuery(Lat, Lon)));
+                    return false;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Console.WriteLine($"        {ex.Message}");
+                    return ex.Message.Contains(keyword) || ex.Message.Contains("覆盖");
+                }
+            });
+        }
+
+        Section("十一、地理编码联调");
         LiveCheck("逆地理编码（应能反查到北京一带）", () =>
         {
             var name = RunOffUiThread(() => geocoder.ReverseAsync(Lat, Lon));
@@ -226,12 +263,14 @@ internal static class Program
         return _failures == 0 ? 0 : 1;
     }
 
-    private static bool CheckProvider(IWeatherProvider provider, double lat, double lon)
+    private static bool CheckProvider(IWeatherProvider provider, double lat, double lon, bool requireCondition)
     {
         var s = RunOffUiThread(() => provider.QueryAsync(new WeatherQuery(lat, lon)));
-        Console.WriteLine($"        气温 {s.Temperature:0.#}°C · 天气 {WeatherText.Describe(s.Condition)} · 湿度 {s.Humidity:0.#}% · 风 {s.WindSpeed:0.#}km/h · 原始码 {s.RawCode}");
-        Console.WriteLine($"        今日 {(s.HasDailyRange ? $"{s.TodayMin:0.#}~{s.TodayMax:0.#}°C" : "数据源未提供")}");
-        return s.Condition != WeatherCondition.Unknown;
+        var humidity = s.Humidity > 0 ? $"{s.Humidity:0.#}%" : "未提供";
+        Console.WriteLine($"        气温 {s.Temperature:0.#}°C · 天气 {WeatherText.Describe(s.Condition)} · 湿度 {humidity} · 风 {s.WindSpeed:0.#}km/h · 原始码 {s.RawCode}");
+        Console.WriteLine($"        来源 {s.ProviderName} · 今日 {(s.HasDailyRange ? $"{s.TodayMin:0.#}~{s.TodayMax:0.#}°C" : "数据源未提供")}");
+        // 温度必须是真的（0 一律当无效），现象则按数据源能力决定要不要强制
+        return s.Temperature != 0 && (!requireCondition || s.Condition != WeatherCondition.Unknown);
     }
 
     private static void Section(string title)
