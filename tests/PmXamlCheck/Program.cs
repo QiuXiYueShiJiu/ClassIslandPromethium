@@ -1,8 +1,8 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System;
-using System.IO;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -10,7 +10,6 @@ using Avalonia.VisualTree;
 using ClassIsland.Promethium.Components;
 using ClassIsland.Promethium.Models;
 using ClassIsland.Promethium.Services;
-using ClassIsland.Promethium.Services.EarthquakeProviders;
 using ClassIsland.Promethium.Services.WeatherProviders;
 using ClassIsland.Promethium.Views.ComponentSettings;
 using ClassIsland.Promethium.Views.SettingsPages;
@@ -36,19 +35,13 @@ internal static class Program
         {
             new OpenMeteoProvider(), new MetNorwayProvider(), new WttrInProvider()
         });
-        var quakeCatalog = new EarthquakeProviderCatalog(new IEarthquakeProvider[]
-        {
-            new UsgsEarthquakeProvider(), new EmscEarthquakeProvider()
-        });
         var weatherMonitor = new WeatherMonitor(weatherCatalog, store, alerts);
-        var quakeMonitor = new EarthquakeMonitor(quakeCatalog, store, alerts);
 
         Section("一、XAML 能否加载（这是插件加载失败最常见的原因）");
         Check("设置页 BetterWeatherSettingsPage", () =>
         {
             // IAudioService 由宿主注入；这里只为验证 XAML，音频用不到
-            var page = new BetterWeatherSettingsPage(
-                store, geocoder, weatherCatalog, quakeCatalog, quakeMonitor, null!);
+            var page = new BetterWeatherSettingsPage(store, geocoder, weatherCatalog, null!);
             return page.Content != null;
         });
         Check("组件设置控件 BetterWeatherComponentSettingsControl", () =>
@@ -79,27 +72,20 @@ internal static class Program
         var noThunder = new WeatherConfig { AlertThunderstorm = false };
         Check("关掉雷暴开关后不应命中", () => WeatherAlertEvaluator.Evaluate(stormy, noThunder).Count == 0);
 
-        Section("三、震感规则：边界必须偏保守");
-        Check("M4.6 / 800km 判为基本无感", () => GeoMath.JudgeFelt(4.6, 800) == FeltLikelihood.Unlikely);
-        Check("M4.6 / 120km 判为轻微", () => GeoMath.JudgeFelt(4.6, 120) == FeltLikelihood.Slight);
-        Check("M6.0 / 200km 判为明显", () => GeoMath.JudgeFelt(6.0, 200) == FeltLikelihood.Strong);
-        Check("M2.0 / 10km  不应误报", () => GeoMath.JudgeFelt(2.0, 10) == FeltLikelihood.Unlikely);
+        var hazy = new WeatherSnapshot { Condition = WeatherCondition.Haze, Temperature = 20 };
+        Check("霾应按大雾/霾一类报警", () =>
+            WeatherAlertEvaluator.Evaluate(hazy, new WeatherConfig()).Any(a => a.Key == "fog"));
 
-        Section("四、距离计算");
-        Check("北京→北京 约 400~460km", () =>
-        {
-            var d = GeoMath.HaversineKm(39.9042, 116.4074, 39.9042, 116.4074);
-            return d > 400 && d < 470;
-        });
-        Check("同一点距离为 0", () => Math.Abs(GeoMath.HaversineKm(Lat, Lon, Lat, Lon)) < 0.001);
-
-        Section("五、变量模板");
+        Section("三、变量模板");
         var vars = new Dictionary<string, string> { ["标题"] = "高温", ["位置"] = "北京" };
         Check("已知变量被替换", () => TemplateEngine.Render("{位置}{标题}", vars) == "北京高温");
         Check("未知变量原样保留（便于用户发现写错）",
             () => TemplateEngine.Render("{没有这个}", vars) == "{没有这个}");
+        Check("天气变量表非空且不含地震变量", () =>
+            AlertTextComposer.WeatherVariables.Length > 0
+            && !AlertTextComposer.WeatherVariables.Contains("震级"));
 
-        Section("六、自定义图标按命名约定取图");
+        Section("四、自定义图标按命名约定取图");
         var iconDir = Path.Combine(folder, "icons");
         Directory.CreateDirectory(iconDir);
         File.WriteAllText(Path.Combine(iconDir, "clear.png"), "x");
@@ -113,17 +99,18 @@ internal static class Program
         Check("目录不存在时返回 null 而不抛异常",
             () => WeatherIconCatalog.ResolveImagePath("/no/such/dir", WeatherCondition.Clear, true) == null);
 
-        Section("七、配置存盘往返");
+        Section("五、配置存盘往返");
         store.Weather.LocationName = "测试地点";
         store.Weather.Latitude = 12.3456;
-        store.Earthquake.MinMagnitude = 5.5;
         store.Save();
         var reloaded = new PromethiumConfigStore(folder);
         Check("地点名往返一致", () => reloaded.Weather.LocationName == "测试地点");
         Check("纬度往返一致", () => Math.Abs(reloaded.Weather.Latitude - 12.3456) < 1e-9);
-        Check("震级往返一致", () => Math.Abs(reloaded.Earthquake.MinMagnitude - 5.5) < 1e-9);
+        Check("配置文件里不再出现地震字段", () =>
+            !File.ReadAllText(Path.Combine(folder, "settings.json"))
+                .Contains("Earthquake", StringComparison.OrdinalIgnoreCase));
 
-        Section("八、显示模式（同时验证设置变更能否实时生效）");
+        Section("六、显示模式（同时验证设置变更能否实时生效）");
         var settings = new BetterWeatherSettings();
         var vm = new ClassIsland.Promethium.ViewModels.BetterWeatherViewModel(weatherMonitor, store, alerts);
         vm.AttachSettings(settings);
@@ -148,48 +135,31 @@ internal static class Program
         settings.DisplayModeIndex = (int)WeatherDisplayMode.Detailed;
         Check("索引写回能改到枚举", () => settings.DisplayMode == WeatherDisplayMode.Detailed);
 
-        Section("九、报警图标可配且非空");
+        Section("七、报警图标");
         Check("天气报警字形非空", () => !string.IsNullOrEmpty(vm.WeatherAlertGlyph));
-        Check("地震报警字形非空", () => !string.IsNullOrEmpty(vm.EarthquakeAlertGlyph));
-        Check("改天气报警字形会通知界面",
-            () => vm.WeatherAlertGlyph == store.Weather.AlertGlyph);
 
-        Section("十、真实接口联调（联网，验证解析而不是猜测）");
+        Section("八、真实接口联调（联网，验证解析而不是猜测）");
         foreach (var provider in new IWeatherProvider[] { new OpenMeteoProvider(), new MetNorwayProvider(), new WttrInProvider() })
         {
-            LiveCheck($"天气源 {provider.DisplayName}", async () =>
+            LiveCheck($"天气源 {provider.DisplayName}", () =>
             {
-                var s = await provider.QueryAsync(new WeatherQuery(Lat, Lon));
+                var s = RunOffUiThread(() => provider.QueryAsync(new WeatherQuery(Lat, Lon)));
                 Console.WriteLine($"        气温 {s.Temperature:0.#}°C · 天气 {WeatherText.Describe(s.Condition)} · 湿度 {s.Humidity:0.#}% · 风 {s.WindSpeed:0.#}km/h · 原始码 {s.RawCode}");
                 Console.WriteLine($"        今日 {s.TodayMin:0.#}~{s.TodayMax:0.#}°C (HasDailyRange={s.HasDailyRange})");
                 return s.Condition != WeatherCondition.Unknown && s.Temperature != 0;
             });
         }
 
-        foreach (var provider in new IEarthquakeProvider[] { new UsgsEarthquakeProvider(), new EmscEarthquakeProvider() })
+        Section("九、地理编码联调");
+        LiveCheck("逆地理编码（应能反查到北京一带）", () =>
         {
-            LiveCheck($"地震源 {provider.DisplayName}", async () =>
-            {
-                var list = await provider.QueryRecentAsync(new EarthquakeQuery(Lat, Lon, 3000, 4, 720));
-                Console.WriteLine($"        30 天内 3000km 内 M4+ 共 {list.Count} 条");
-                foreach (var e in list.Take(3))
-                {
-                    Console.WriteLine($"          M{e.Magnitude:0.0} {e.Time:yyyy-MM-dd HH:mm} {e.Place} · 深度 {e.DepthKm:0.#}km · 距此 {e.DistanceKm:0}km · {e.FeltText}");
-                }
-                return list.Count > 0 && list.All(e => e.DepthKm >= -5 && e.Magnitude > 0);
-            });
-        }
-
-        Section("十一、地理编码联调");
-        LiveCheck("逆地理编码（应能反查到北京一带）", async () =>
-        {
-            var name = await geocoder.ReverseAsync(Lat, Lon);
+            var name = RunOffUiThread(() => geocoder.ReverseAsync(Lat, Lon));
             Console.WriteLine($"        {name}");
             return name.Contains("北京") || name.Contains("北京");
         });
-        LiveCheck("地名搜索", async () =>
+        LiveCheck("地名搜索（应能搜到镇一级）", () =>
         {
-            var results = await geocoder.SearchAsync("某某镇");
+            var results = RunOffUiThread(() => geocoder.SearchAsync("某某镇"));
             Console.WriteLine($"        找到 {results.Count} 条，首条：{(results.Count > 0 ? results[0].DisplayName : "无")}");
             return results.Count > 0;
         });
@@ -230,11 +200,11 @@ internal static class Program
     private static T RunOffUiThread<T>(Func<Task<T>> action) =>
         Task.Run(action).GetAwaiter().GetResult();
 
-    private static void LiveCheck(string name, Func<Task<bool>> action)
+    private static void LiveCheck(string name, Func<bool> action)
     {
         try
         {
-            var ok = RunOffUiThread(action);
+            var ok = action();
             Console.WriteLine($"  [{(ok ? "通过" : "不符")}] {name}");
             if (!ok) _failures++;
         }

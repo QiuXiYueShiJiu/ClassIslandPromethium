@@ -13,15 +13,15 @@
 
             <fa:InfoBar Severity="Warning" IsOpen="True" IsClosable="False"
                         Title="网络数据不代表真实天气信息"
-                        Message="本页所有天气数据都来自第三方公开接口，仅供参考，请以气象台正式发布的信息为准。地震部分同理：它是公开地震目录的事后速报，不是震前预警。" />
+                        Message="本页所有天气数据都来自第三方公开接口，仅供参考，请以气象台正式发布的信息为准。" />
 
-            <!-- ==================== 关注位置（天气与地震共用） ==================== -->
+            <!-- ==================== 关注位置 ==================== -->
             <Border CornerRadius="8" BorderThickness="1" Padding="12"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
                 <StackPanel Spacing="8">
                     <TextBlock Text="关注位置" FontWeight="SemiBold" />
                     <TextBlock FontSize="12" Opacity="0.7" TextWrapping="Wrap"
-                               Text="天气和地震速报都用这个点。地震那块没有单独的位置设置，就是为了保证两边永远对得上。" />
+                               Text="天气数据按这个点的经纬度直接查询。地图上点一下、直接填经纬度、或者搜地名都行。" />
 
                     <Border CornerRadius="8" ClipToBounds="True" BorderThickness="1"
                             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
@@ -141,7 +141,7 @@
                 <fa:SettingsExpanderItem Content="报警模式"
                                          Description="关掉就不报；「实时显示」只在主界面组件上挂着，不打扰你。">
                     <fa:SettingsExpanderItem.Footer>
-                        <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedWeatherDeliveryIndex, Mode=TwoWay}">
+                        <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedDeliveryIndex, Mode=TwoWay}">
                             <ComboBoxItem>关闭</ComboBoxItem>
                             <ComboBoxItem>只弹提醒</ComboBoxItem>
                             <ComboBoxItem>只实时显示</ComboBoxItem>
@@ -217,8 +217,8 @@
                     <fa:SettingsExpanderItem.Footer>
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <TextBox Text="{Binding Weather.SoundPath, Mode=TwoWay}" MinWidth="240" />
-                            <Button Content="浏览" Click="OnBrowseWeatherSound" />
-                            <Button Content="试听" Command="{Binding TestWeatherSoundCommand}" />
+                            <Button Content="浏览" Click="OnBrowseSound" />
+                            <Button Content="试听" Command="{Binding TestSoundCommand}" />
                         </StackPanel>
                     </fa:SettingsExpanderItem.Footer>
                 </fa:SettingsExpanderItem>
@@ -232,120 +232,6 @@
                 </fa:SettingsExpanderItem>
             </fa:SettingsExpander>
 
-            <!-- ==================== 块二：地震预警 ==================== -->
-            <fa:SettingsExpander Header="地震预警"
-                                 Description="公开地震目录的事后速报，做不到震前预警"
-                                 IsExpanded="True">
-                <fa:SettingsExpander.Footer>
-                    <ToggleSwitch IsChecked="{Binding Earthquake.IsEnabled, Mode=TwoWay}" />
-                </fa:SettingsExpander.Footer>
-
-                <fa:SettingsExpanderItem Content="必须知道的限制"
-                                         Description="地震要等台网记录、定位、定级之后才会进目录，所以拿到消息时地震往往已经发生完了。真正的震前预警需要专门的台网和推送通道，插件做不到。这里宁可漏报，也不报假消息。">
-                    <fa:SettingsExpanderItem.Footer>
-                        <TextBlock Text="事后速报" Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="数据源" Description="{Binding SelectedEarthquakeProviderDescription}">
-                    <fa:SettingsExpanderItem.Footer>
-                        <ComboBox MinWidth="200"
-                                  ItemsSource="{Binding EarthquakeProviders}"
-                                  SelectedIndex="{Binding SelectedEarthquakeProviderIndex, Mode=TwoWay}">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding Name}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="关注半径" Description="公里。震中在这个范围内才考虑提醒。">
-                    <fa:SettingsExpanderItem.Footer>
-                        <fa:NumberBox Value="{Binding Earthquake.RadiusKm, Mode=TwoWay}"
-                                      Minimum="1" Maximum="20000" SmallChange="50" LargeChange="500"
-                                      SpinButtonPlacementMode="Compact" MinWidth="150" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="最低震级" Description="小于这个震级不提醒。调低会更容易触发。">
-                    <fa:SettingsExpanderItem.Footer>
-                        <fa:NumberBox Value="{Binding Earthquake.MinMagnitude, Mode=TwoWay}"
-                                      Minimum="0" Maximum="10" SmallChange="0.1"
-                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="回看时长" Description="小时。查最近这段时间内的记录。">
-                    <fa:SettingsExpanderItem.Footer>
-                        <fa:NumberBox Value="{Binding Earthquake.LookbackHours, Mode=TwoWay}"
-                                      Minimum="1" Maximum="720" SmallChange="6" LargeChange="24"
-                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="检查间隔" Description="分钟。">
-                    <fa:SettingsExpanderItem.Footer>
-                        <fa:NumberBox Value="{Binding Earthquake.PollIntervalMinutes, Mode=TwoWay}"
-                                      Minimum="1" Maximum="120" SmallChange="1" LargeChange="5"
-                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="报警模式">
-                    <fa:SettingsExpanderItem.Footer>
-                        <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedEarthquakeDeliveryIndex, Mode=TwoWay}">
-                            <ComboBoxItem>关闭</ComboBoxItem>
-                            <ComboBoxItem>只弹提醒</ComboBoxItem>
-                            <ComboBoxItem>只实时显示</ComboBoxItem>
-                            <ComboBoxItem>提醒 + 实时显示</ComboBoxItem>
-                        </ComboBox>
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="提醒文案" Description="{Binding EarthquakeVariableHint}">
-                    <fa:SettingsExpanderItem.Footer>
-                        <TextBox Text="{Binding Earthquake.NotifyTemplate, Mode=TwoWay}" MinWidth="320" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="实时显示文案" Description="{Binding EarthquakeVariableHint}">
-                    <fa:SettingsExpanderItem.Footer>
-                        <TextBox Text="{Binding Earthquake.InlineTemplate, Mode=TwoWay}" MinWidth="320" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="速报图标字形" Description="一个 Fluent 图标码位，例如 \uE7BA 是警告三角。">
-                    <fa:SettingsExpanderItem.Footer>
-                        <TextBox Text="{Binding Earthquake.AlertGlyph, Mode=TwoWay}" MinWidth="120" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="提示音" Description="留空就用 ClassIsland 通知自己的声音。">
-                    <fa:SettingsExpanderItem.Footer>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBox Text="{Binding Earthquake.SoundPath, Mode=TwoWay}" MinWidth="240" />
-                            <Button Content="浏览" Click="OnBrowseEarthquakeSound" />
-                            <Button Content="试听" Command="{Binding TestEarthquakeSoundCommand}" />
-                        </StackPanel>
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="提示音音量" Description="0 到 1。">
-                    <fa:SettingsExpanderItem.Footer>
-                        <fa:NumberBox Value="{Binding Earthquake.SoundVolume, Mode=TwoWay}"
-                                      Minimum="0" Maximum="1" SmallChange="0.05"
-                                      SpinButtonPlacementMode="Compact" MinWidth="130" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-
-                <fa:SettingsExpanderItem Content="立刻检查一次" Description="{Binding EarthquakeStatusText}">
-                    <fa:SettingsExpanderItem.Footer>
-                        <Button Content="检查" Command="{Binding CheckEarthquakeCommand}" />
-                    </fa:SettingsExpanderItem.Footer>
-                </fa:SettingsExpanderItem>
-            </fa:SettingsExpander>
         </StackPanel>
     </ScrollViewer>
 </ci:SettingsPageBase>

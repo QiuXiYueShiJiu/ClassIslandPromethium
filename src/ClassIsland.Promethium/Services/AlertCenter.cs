@@ -20,14 +20,6 @@ public partial class AlertCenter : ObservableObject
     /// <summary>当前有没有天气报警。</summary>
     public bool HasWeatherAlert => !string.IsNullOrEmpty(WeatherAlertText);
 
-    /// <summary>当前地震速报的显示文字。</summary>
-    [ObservableProperty]
-    private string _earthquakeAlertText = string.Empty;
-
-    /// <summary>当前有没有地震速报。</summary>
-    public bool HasEarthquakeAlert => !string.IsNullOrEmpty(EarthquakeAlertText);
 
     partial void OnWeatherAlertTextChanged(string value) => OnPropertyChanged(nameof(HasWeatherAlert));
-
-    partial void OnEarthquakeAlertTextChanged(string value) => OnPropertyChanged(nameof(HasEarthquakeAlert));
 }

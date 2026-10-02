@@ -33,12 +33,3 @@ public enum WeatherIconMode
     TextOnly = 3
 }
 
-/// <summary>地震信息从哪儿来。</summary>
-public enum EarthquakeSource
-{
-    /// <summary>美国地质调查局（USGS）公开地震目录，全球覆盖、无需密钥。</summary>
-    Usgs = 0,
-
-    /// <summary>欧洲-地中海地震中心（EMSC）公开目录，免密钥。</summary>
-    Emsc = 1
-}

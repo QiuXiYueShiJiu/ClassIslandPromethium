@@ -16,8 +16,8 @@ namespace ClassIsland.Promethium.Views.SettingsPages;
 /// 设置窗口里「Pm优化 → 更好的天气」这一页。
 /// </summary>
 /// <remarks>
-/// 分两个块：天气一块、地震速报一块。位置配置放在天气块外面单独一张卡片，
-/// 因为地震速报共用同一个位置——用户要求的「位置同步天气选项」就是这么落地的。
+/// 位置单独一张卡片放在设置块外面，因为它是这个页面里最常改的东西，
+/// 埋在折叠项里不好找。
 /// </remarks>
 [SettingsPageInfo("qiuxiyueshijiu.promethium.better-weather", "更好的天气", "\uF44F", "\uF44E")]
 [Group(PromethiumPlugin.SettingsGroupId)]
@@ -30,12 +30,9 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
         PromethiumConfigStore store,
         NominatimService geocoder,
         WeatherProviderCatalog weatherCatalog,
-        EarthquakeProviderCatalog earthquakeCatalog,
-        EarthquakeMonitor earthquakeMonitor,
         IAudioService audioService)
     {
-        ViewModel = new BetterWeatherSettingsViewModel(
-            store, geocoder, weatherCatalog, earthquakeCatalog, earthquakeMonitor, audioService);
+        ViewModel = new BetterWeatherSettingsViewModel(store, geocoder, weatherCatalog, audioService);
 
         InitializeComponent();
         Root.DataContext = ViewModel;
@@ -65,15 +62,12 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
         }
     }
 
-    private void OnBrowseWeatherSound(object? sender, RoutedEventArgs e) =>
-        _ = BrowseAsync(path => ViewModel.Weather.SoundPath = path);
-
-    private void OnBrowseEarthquakeSound(object? sender, RoutedEventArgs e) =>
-        _ = BrowseAsync(path => ViewModel.Earthquake.SoundPath = path);
+    private void OnBrowseSound(object? sender, RoutedEventArgs e) =>
+        _ = BrowseFileAsync(path => ViewModel.Weather.SoundPath = path);
 
     private void OnBrowseImageFolder(object? sender, RoutedEventArgs e) => _ = BrowseFolderAsync();
 
-    private async Task BrowseAsync(Action<string> apply)
+    private async Task BrowseFileAsync(Action<string> apply)
     {
         var top = TopLevel.GetTopLevel(this);
         if (top == null)

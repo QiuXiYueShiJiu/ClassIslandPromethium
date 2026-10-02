@@ -5,7 +5,6 @@ using ClassIsland.Core.Extensions.Registry;
 using ClassIsland.Promethium.Components;
 using ClassIsland.Promethium.Services;
 using ClassIsland.Promethium.Notifications;
-using ClassIsland.Promethium.Services.EarthquakeProviders;
 using ClassIsland.Promethium.Services.WeatherProviders;
 using ClassIsland.Promethium.Views.ComponentSettings;
 using ClassIsland.Promethium.Views.SettingsPages;
@@ -47,27 +46,16 @@ public class PromethiumPlugin : PluginBase
             sp.GetRequiredService<WttrInProvider>()
         }));
 
-        // 地震目录：两个免密钥的预设
-        services.AddSingleton<UsgsEarthquakeProvider>();
-        services.AddSingleton<EmscEarthquakeProvider>();
-        services.AddSingleton(sp => new EarthquakeProviderCatalog(new IEarthquakeProvider[]
-        {
-            sp.GetRequiredService<UsgsEarthquakeProvider>(),
-            sp.GetRequiredService<EmscEarthquakeProvider>()
-        }));
 
         // 报警状态的单一来源
         services.AddSingleton<AlertCenter>();
 
         // 监测循环：整个插件里只有它们会去拉网络数据
         services.AddSingleton<WeatherMonitor>();
-        services.AddSingleton<EarthquakeMonitor>();
         services.AddHostedService(sp => sp.GetRequiredService<WeatherMonitor>());
-        services.AddHostedService(sp => sp.GetRequiredService<EarthquakeMonitor>());
 
         // 报警走宿主自己的通知系统，用户能在 CI 的通知设置里统一管理
         services.AddNotificationProvider<WeatherAlertNotificationProvider>();
-        services.AddNotificationProvider<EarthquakeNotificationProvider>();
 
         // 设置窗口入口：Pm优化
         services.AddSettingsPageGroup(SettingsGroupId, "\uE713", "Pm优化");

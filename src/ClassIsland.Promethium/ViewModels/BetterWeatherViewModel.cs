@@ -60,8 +60,6 @@ public partial class BetterWeatherViewModel : ObservableObject
     /// <summary>天气报警用的图标字形。</summary>
     public string WeatherAlertGlyph => Config.AlertGlyph;
 
-    /// <summary>地震速报用的图标字形。</summary>
-    public string EarthquakeAlertGlyph => _store.Earthquake.AlertGlyph;
 
     // ---------- 天气文字 ----------
 
@@ -135,7 +133,6 @@ public partial class BetterWeatherViewModel : ObservableObject
         Alerts = alerts;
 
         Config.PropertyChanged += OnConfigChanged;
-        store.Earthquake.PropertyChanged += OnEarthquakeConfigChanged;
         _monitor.SnapshotUpdated += (_, _) => Apply(_monitor.Snapshot);
         _monitor.PropertyChanged += OnMonitorChanged;
 
@@ -212,13 +209,6 @@ public partial class BetterWeatherViewModel : ObservableObject
     /// <summary>立刻要一次数据，用于刚改完设置的时候。</summary>
     public Task RefreshAsync() => _monitor.RefreshNowAsync();
 
-    private void OnEarthquakeConfigChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(EarthquakeConfig.AlertGlyph))
-        {
-            OnPropertyChanged(nameof(EarthquakeAlertGlyph));
-        }
-    }
 
     private void OnMonitorChanged(object? sender, PropertyChangedEventArgs e)
     {

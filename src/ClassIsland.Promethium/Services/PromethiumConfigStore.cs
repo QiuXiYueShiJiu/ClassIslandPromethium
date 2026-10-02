@@ -27,15 +27,11 @@ public class PromethiumConfigStore
     /// <summary>「更好的天气」的全局配置。</summary>
     public WeatherConfig Weather { get; private set; }
 
-    /// <summary>地震速报的配置。</summary>
-    public EarthquakeConfig Earthquake { get; private set; }
-
     public PromethiumConfigStore(string configFolder)
     {
         _filePath = Path.Combine(configFolder, "settings.json");
         var loaded = Load();
         Weather = loaded.Weather ?? new WeatherConfig();
-        Earthquake = loaded.Earthquake ?? new EarthquakeConfig();
     }
 
     private ConfigRoot Load()
@@ -65,7 +61,7 @@ public class PromethiumConfigStore
     {
         try
         {
-            var root = new ConfigRoot { Weather = Weather, Earthquake = Earthquake };
+            var root = new ConfigRoot { Weather = Weather };
             var json = JsonSerializer.Serialize(root, Options);
             var temp = _filePath + ".tmp";
             File.WriteAllText(temp, json);
@@ -81,14 +77,11 @@ public class PromethiumConfigStore
     private class ConfigRoot
     {
         public WeatherConfig? Weather { get; set; }
-
-        public EarthquakeConfig? Earthquake { get; set; }
     }
 
     /// <summary>任一配置被改动就落盘。</summary>
     public void WatchForChanges()
     {
         Weather.PropertyChanged += (_, _) => Save();
-        Earthquake.PropertyChanged += (_, _) => Save();
     }
 }

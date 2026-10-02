@@ -12,39 +12,26 @@ namespace ClassIsland.Promethium.ViewModels;
 /// 设置窗口里「Pm优化 → 更好的天气」这一页的视图模型。
 /// </summary>
 /// <remarks>
-/// 位置、数据源、图标、报警全都在这一个页面里改，分两个块：
-/// 天气一块、地震速报一块。落盘由配置存储统一负责，这里不自己写文件。
+/// 位置、数据源、图标、报警都在这一页里改。落盘由配置存储统一负责，这里不自己写文件。
 /// </remarks>
 public partial class BetterWeatherSettingsViewModel : ObservableObject
 {
     private readonly NominatimService _geocoder;
     private readonly WeatherProviderCatalog _weatherCatalog;
-    private readonly EarthquakeProviderCatalog _earthquakeCatalog;
-    private readonly EarthquakeMonitor _earthquakeMonitor;
     private readonly IAudioService _audioService;
 
-    /// <summary>天气那一块的配置。</summary>
+    /// <summary>天气配置。</summary>
     public WeatherConfig Weather { get; }
-
-    /// <summary>地震速报那一块的配置。</summary>
-    public EarthquakeConfig Earthquake { get; }
 
     /// <summary>可选天气数据源。</summary>
     public IReadOnlyList<WeatherProviderInfo> WeatherProviders => _weatherCatalog.All;
 
-    /// <summary>可选地震目录。</summary>
-    public IReadOnlyList<EarthquakeProviderInfo> EarthquakeProviders => _earthquakeCatalog.All;
-
     /// <summary>可按地名搜出来的候选点。</summary>
     public ObservableCollection<PlaceCandidate> Candidates { get; } = new();
 
-    /// <summary>天气块里可以用的变量说明。</summary>
+    /// <summary>报警文案里可以用的变量说明。</summary>
     public string WeatherVariableHint { get; } =
         "可用变量：" + TemplateEngine.Describe(AlertTextComposer.WeatherVariables);
-
-    /// <summary>地震块里可以用的变量说明。</summary>
-    public string EarthquakeVariableHint { get; } =
-        "可用变量：" + TemplateEngine.Describe(AlertTextComposer.EarthquakeVariables);
 
     /// <summary>自定义图片模式的文件命名约定。</summary>
     public string ImageNamingHint { get; } =
@@ -55,13 +42,9 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _searchText = string.Empty;
 
-    /// <summary>天气块的状态提示。</summary>
+    /// <summary>状态提示。</summary>
     [ObservableProperty]
     private string _statusText = "在地图上点一下，或者搜个地名。";
-
-    /// <summary>地震块的状态提示。</summary>
-    [ObservableProperty]
-    private string _earthquakeStatusText = "开启后每隔一段时间检查一次公开地震目录。";
 
     /// <summary>正在联网。</summary>
     [ObservableProperty]
@@ -71,18 +54,13 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
         PromethiumConfigStore store,
         NominatimService geocoder,
         WeatherProviderCatalog weatherCatalog,
-        EarthquakeProviderCatalog earthquakeCatalog,
-        EarthquakeMonitor earthquakeMonitor,
         IAudioService audioService)
     {
         _geocoder = geocoder;
         _weatherCatalog = weatherCatalog;
-        _earthquakeCatalog = earthquakeCatalog;
-        _earthquakeMonitor = earthquakeMonitor;
         _audioService = audioService;
 
         Weather = store.Weather;
-        Earthquake = store.Earthquake;
 
         // 图标方式一变，几个可见性开关要跟着变，不然设置页会显示错行
         Weather.PropertyChanged += (_, e) =>
@@ -94,25 +72,11 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsImageMode));
             }
         };
-
-        _earthquakeMonitor.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(EarthquakeMonitor.ErrorText))
-            {
-                EarthquakeStatusText = string.IsNullOrEmpty(_earthquakeMonitor.ErrorText)
-                    ? "检查正常。"
-                    : _earthquakeMonitor.ErrorText;
-            }
-        };
     }
 
     /// <summary>当前选中数据源的说明，显示在设置页里。</summary>
     public string SelectedWeatherProviderDescription =>
         WeatherProviders[SelectedWeatherProviderIndex].Description;
-
-    /// <summary>当前选中地震目录的说明。</summary>
-    public string SelectedEarthquakeProviderDescription =>
-        EarthquakeProviders[SelectedEarthquakeProviderIndex].Description;
 
     /// <summary>当前是不是用系统字形。</summary>
     public bool IsGlyphMode => Weather.IconMode == WeatherIconMode.SystemGlyph;
@@ -125,7 +89,7 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
 
     // ---------- 下拉框的索引映射 ----------
     // 用索引而不是直接绑枚举：ComboBox 的 SelectedIndex 是 int，
-    // 中间隔一层显式映射就不会依赖绑定引擎去做枚举转换。
+    // 中间隔一层显式映射就不会依赖绑定引擎去做枚举转换（转换失败还不报错）。
 
     /// <summary>当前天气数据源在列表里的位置。</summary>
     public int SelectedWeatherProviderIndex
@@ -137,20 +101,6 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
             {
                 Weather.Provider = WeatherProviders[value].Kind;
                 OnPropertyChanged(nameof(SelectedWeatherProviderDescription));
-            }
-        }
-    }
-
-    /// <summary>当前地震目录在列表里的位置。</summary>
-    public int SelectedEarthquakeProviderIndex
-    {
-        get => IndexOf(EarthquakeProviders, i => i.Source == Earthquake.Source);
-        set
-        {
-            if (value >= 0 && value < EarthquakeProviders.Count)
-            {
-                Earthquake.Source = EarthquakeProviders[value].Source;
-                OnPropertyChanged(nameof(SelectedEarthquakeProviderDescription));
             }
         }
     }
@@ -168,8 +118,8 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>天气报警模式的索引。</summary>
-    public int SelectedWeatherDeliveryIndex
+    /// <summary>报警模式的索引。</summary>
+    public int SelectedDeliveryIndex
     {
         get => (int)Weather.Delivery;
         set
@@ -177,19 +127,6 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
             if (value >= 0 && value <= (int)AlertDelivery.Both)
             {
                 Weather.Delivery = (AlertDelivery)value;
-            }
-        }
-    }
-
-    /// <summary>地震速报报警模式的索引。</summary>
-    public int SelectedEarthquakeDeliveryIndex
-    {
-        get => (int)Earthquake.Delivery;
-        set
-        {
-            if (value >= 0 && value <= (int)AlertDelivery.Both)
-            {
-                Earthquake.Delivery = (AlertDelivery)value;
             }
         }
     }
@@ -295,25 +232,20 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
 
     // ---------- 提示音 ----------
 
-    /// <summary>试听天气报警的提示音。</summary>
+    /// <summary>试听报警提示音。</summary>
     [RelayCommand]
-    private Task TestWeatherSoundAsync() => PlaySoundAsync(Weather.SoundPath, Weather.SoundVolume, "天气");
-
-    /// <summary>试听地震速报的提示音。</summary>
-    [RelayCommand]
-    private Task TestEarthquakeSoundAsync() => PlaySoundAsync(Earthquake.SoundPath, Earthquake.SoundVolume, "地震");
-
-    private async Task PlaySoundAsync(string path, double volume, string label)
+    private async Task TestSoundAsync()
     {
-        if (string.IsNullOrWhiteSpace(path))
+        if (string.IsNullOrWhiteSpace(Weather.SoundPath))
         {
-            StatusText = $"还没给{label}报警选音频文件。";
+            StatusText = "还没给报警选音频文件。";
             return;
         }
 
         try
         {
-            await _audioService.PlayAudioAsync(path, (float)Math.Clamp(volume, 0d, 1d), null);
+            await _audioService.PlayAudioAsync(Weather.SoundPath,
+                (float)Math.Clamp(Weather.SoundVolume, 0d, 1d), null);
         }
         catch (Exception ex)
         {
@@ -321,33 +253,11 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
         }
     }
 
-    // ---------- 地震 ----------
-
-    /// <summary>立刻检查一次地震目录。</summary>
-    [RelayCommand]
-    private async Task CheckEarthquakeAsync()
-    {
-        EarthquakeStatusText = "正在检查…";
-        try
-        {
-            await _earthquakeMonitor.CheckNowAsync();
-            EarthquakeStatusText = string.IsNullOrEmpty(_earthquakeMonitor.ErrorText)
-                ? $"检查完成，本次共取回 {_earthquakeMonitor.LastQueriedCount} 条记录。"
-                : _earthquakeMonitor.ErrorText;
-        }
-        catch (Exception ex)
-        {
-            EarthquakeStatusText = "检查失败：" + ex.GetType().Name;
-        }
-    }
-
     /// <summary>设置页被打开时刷新一下下拉框的选中项。</summary>
     public void NotifySelectionRefresh()
     {
         OnPropertyChanged(nameof(SelectedWeatherProviderIndex));
-        OnPropertyChanged(nameof(SelectedEarthquakeProviderIndex));
         OnPropertyChanged(nameof(SelectedIconModeIndex));
-        OnPropertyChanged(nameof(SelectedWeatherDeliveryIndex));
-        OnPropertyChanged(nameof(SelectedEarthquakeDeliveryIndex));
+        OnPropertyChanged(nameof(SelectedDeliveryIndex));
     }
 }

@@ -64,16 +64,6 @@
                    VerticalAlignment="Center"
                    FontSize="{DynamicResource MainWindowSecondaryFontSize}"
                    Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-        <ci:FluentIcon Glyph="{Binding EarthquakeAlertGlyph}"
-                       IsVisible="{Binding Alerts.HasEarthquakeAlert}"
-                       Height="18" Width="18" FontSize="18"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
-        <TextBlock Text="{Binding Alerts.EarthquakeAlertText}"
-                   IsVisible="{Binding Alerts.HasEarthquakeAlert}"
-                   VerticalAlignment="Center"
-                   FontSize="{DynamicResource MainWindowSecondaryFontSize}"
-                   Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
 
         <TextBlock Text="{Binding StatusText}"
                    VerticalAlignment="Center"

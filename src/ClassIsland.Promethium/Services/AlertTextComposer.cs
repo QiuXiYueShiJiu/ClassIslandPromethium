@@ -8,8 +8,7 @@ namespace ClassIsland.Promethium.Services;
 /// 把报警内容套进用户写的文案模板里。
 /// </summary>
 /// <remarks>
-/// 两个报警共用同一套渲染逻辑，区别只在变量表里放什么，
-/// 所以「支持变量」这件事只需要实现一次。
+/// 渲染逻辑只此一处，报警内容换什么，改这里塞进变量表的东西就行。
 /// </remarks>
 public static class AlertTextComposer
 {
@@ -19,11 +18,6 @@ public static class AlertTextComposer
         "位置", "标题", "详情", "天气", "温度", "体感", "湿度", "风力", "风向", "最高", "最低", "数据源", "时间"
     };
 
-    /// <summary>地震速报可用的变量名。</summary>
-    public static readonly string[] EarthquakeVariables =
-    {
-        "地点", "震级", "深度", "距离", "震感", "时间", "来源", "链接"
-    };
 
     /// <summary>组装天气报警的变量表。</summary>
     public static Dictionary<string, string> BuildWeatherVariables(
@@ -48,20 +42,4 @@ public static class AlertTextComposer
         };
     }
 
-    /// <summary>组装地震速报的变量表。</summary>
-    public static Dictionary<string, string> BuildEarthquakeVariables(EarthquakeEvent earthquake, string sourceName)
-    {
-        var culture = CultureInfo.InvariantCulture;
-        return new Dictionary<string, string>
-        {
-            ["地点"] = string.IsNullOrWhiteSpace(earthquake.Place) ? "未知区域" : earthquake.Place,
-            ["震级"] = earthquake.Magnitude.ToString("0.0", culture),
-            ["深度"] = earthquake.DepthKm.ToString("0.#", culture),
-            ["距离"] = earthquake.DistanceKm.ToString("0", culture),
-            ["震感"] = earthquake.FeltText,
-            ["时间"] = earthquake.Time.ToString("MM-dd HH:mm", culture),
-            ["来源"] = sourceName,
-            ["链接"] = string.IsNullOrWhiteSpace(earthquake.Url) ? "无" : earthquake.Url
-        };
-    }
 }
