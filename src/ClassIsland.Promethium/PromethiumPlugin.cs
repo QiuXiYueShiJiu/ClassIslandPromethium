@@ -35,15 +35,33 @@ public class PromethiumPlugin : PluginBase
 
         services.AddSingleton<NominatimService>();
 
-        // 天气数据源：三个免密钥的预设
+        // 天气数据源：五个免密钥 + 七个需要密钥的预设
         services.AddSingleton<OpenMeteoProvider>();
         services.AddSingleton<MetNorwayProvider>();
         services.AddSingleton<WttrInProvider>();
+        services.AddSingleton<SevenTimerProvider>();
+        services.AddSingleton<NwsProvider>();
+        services.AddSingleton<QWeatherProvider>();
+        services.AddSingleton<SeniverseProvider>();
+        services.AddSingleton<OpenWeatherMapProvider>();
+        services.AddSingleton<WeatherApiProvider>();
+        services.AddSingleton<WeatherbitProvider>();
+        services.AddSingleton<VisualCrossingProvider>();
+        services.AddSingleton<TomorrowIoProvider>();
         services.AddSingleton(sp => new WeatherProviderCatalog(new IWeatherProvider[]
         {
             sp.GetRequiredService<OpenMeteoProvider>(),
             sp.GetRequiredService<MetNorwayProvider>(),
-            sp.GetRequiredService<WttrInProvider>()
+            sp.GetRequiredService<WttrInProvider>(),
+            sp.GetRequiredService<SevenTimerProvider>(),
+            sp.GetRequiredService<NwsProvider>(),
+            sp.GetRequiredService<QWeatherProvider>(),
+            sp.GetRequiredService<SeniverseProvider>(),
+            sp.GetRequiredService<OpenWeatherMapProvider>(),
+            sp.GetRequiredService<WeatherApiProvider>(),
+            sp.GetRequiredService<WeatherbitProvider>(),
+            sp.GetRequiredService<VisualCrossingProvider>(),
+            sp.GetRequiredService<TomorrowIoProvider>()
         }));
 
 

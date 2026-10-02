@@ -62,6 +62,23 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
         }
     }
 
+    private void OnOpenApiKeyPage(object? sender, RoutedEventArgs e) => _ = OpenApiKeyPageAsync();
+
+    private async Task OpenApiKeyPageAsync()
+    {
+        var url = ViewModel.SelectedProviderApiKeyUrl;
+        var top = TopLevel.GetTopLevel(this);
+        if (string.IsNullOrWhiteSpace(url) || top?.Launcher is not { } launcher)
+        {
+            return;
+        }
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            await launcher.LaunchUriAsync(uri);
+        }
+    }
+
     private void OnBrowseSound(object? sender, RoutedEventArgs e) =>
         _ = BrowseFileAsync(path => ViewModel.Weather.SoundPath = path);
 

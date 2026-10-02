@@ -36,6 +36,34 @@ public partial class WeatherConfig : ObservableObject
     [ObservableProperty]
     private WeatherProviderKind _provider = WeatherProviderKind.OpenMeteo;
 
+    /// <summary>
+    /// 各数据源的密钥，按数据源名分开存。
+    /// </summary>
+    /// <remarks>
+    /// 分开存是为了让用户在几个源之间来回切时不用反复粘密钥。
+    /// 免密钥的源不会往这里写东西。
+    /// </remarks>
+    public Dictionary<string, string> ApiKeys { get; set; } = new();
+
+    /// <summary>取某个数据源的密钥。</summary>
+    public string GetApiKey(WeatherProviderKind kind) =>
+        ApiKeys.TryGetValue(kind.ToString(), out var key) ? key : string.Empty;
+
+    /// <summary>存某个数据源的密钥。</summary>
+    public void SetApiKey(WeatherProviderKind kind, string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            ApiKeys.Remove(kind.ToString());
+        }
+        else
+        {
+            ApiKeys[kind.ToString()] = key;
+        }
+
+        OnPropertyChanged(nameof(ApiKeys));
+    }
+
     // ---------- 图标显示方式 ----------
 
     /// <summary>天气图标怎么画。</summary>

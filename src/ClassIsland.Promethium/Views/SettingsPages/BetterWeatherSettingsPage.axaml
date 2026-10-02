@@ -82,13 +82,32 @@
                     <fa:SettingsExpanderItem.Footer>
                         <ComboBox MinWidth="200"
                                   ItemsSource="{Binding WeatherProviders}"
-                                  SelectedIndex="{Binding SelectedWeatherProviderIndex, Mode=TwoWay}">
+                                  SelectedItem="{Binding SelectedWeatherProvider, Mode=TwoWay}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Name}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Text="{Binding Region}" Opacity="0.6" FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
+                    </fa:SettingsExpanderItem.Footer>
+                </fa:SettingsExpanderItem>
+
+                <fa:SettingsExpanderItem Content="{Binding SelectedProviderRegion}"
+                                         Description="该数据源覆盖的地理范围。范围外的坐标可能查不到。" />
+
+                <fa:SettingsExpanderItem Content="API 密钥"
+                                         IsVisible="{Binding SelectedProviderRequiresKey}"
+                                         Description="{Binding ApiKeyHint}">
+                    <fa:SettingsExpanderItem.Footer>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBox Text="{Binding ApiKey, Mode=TwoWay}" MinWidth="260"
+                                     Watermark="把申请到的密钥粘到这里" />
+                            <Button Content="申请密钥" Click="OnOpenApiKeyPage" />
+                        </StackPanel>
                     </fa:SettingsExpanderItem.Footer>
                 </fa:SettingsExpanderItem>
 

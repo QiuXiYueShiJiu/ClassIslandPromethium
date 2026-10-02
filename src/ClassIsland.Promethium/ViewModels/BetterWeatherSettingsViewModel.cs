@@ -74,9 +74,39 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
         };
     }
 
+    /// <summary>当前选中数据源那条台账记录。</summary>
+    private WeatherProviderInfo SelectedInfo =>
+        WeatherProviders.FirstOrDefault(i => i.Kind == Weather.Provider) ?? WeatherProviders[0];
+
     /// <summary>当前选中数据源的说明，显示在设置页里。</summary>
-    public string SelectedWeatherProviderDescription =>
-        WeatherProviders[SelectedWeatherProviderIndex].Description;
+    public string SelectedWeatherProviderDescription => SelectedInfo.Description;
+
+    /// <summary>当前数据源的覆盖范围。</summary>
+    public string SelectedProviderRegion => SelectedInfo.Region;
+
+    /// <summary>当前数据源要不要密钥。</summary>
+    public bool SelectedProviderRequiresKey => SelectedInfo.RequiresApiKey;
+
+    /// <summary>当前数据源去哪申请密钥；免密钥的为空串。</summary>
+    public string SelectedProviderApiKeyUrl => SelectedInfo.ApiKeyUrl;
+
+    /// <summary>密钥输入框的提示语。</summary>
+    public string ApiKeyHint =>
+        SelectedProviderRequiresKey
+            ? $"该数据源需要密钥。去 {SelectedProviderApiKeyUrl} 申请后粘到这里，密钥按数据源分别保存，来回切换不用重填。"
+            : "当前数据源不需要密钥。";
+
+    /// <summary>
+    /// 当前数据源的密钥。
+    /// </summary>
+    /// <remarks>
+    /// 读写都落到配置里按数据源分开的那份字典上，所以几个源之间来回切不会互相覆盖。
+    /// </remarks>
+    public string ApiKey
+    {
+        get => Weather.GetApiKey(Weather.Provider);
+        set => Weather.SetApiKey(Weather.Provider, value ?? string.Empty);
+    }
 
     /// <summary>当前是不是用系统字形。</summary>
     public bool IsGlyphMode => Weather.IconMode == WeatherIconMode.SystemGlyph;
@@ -91,17 +121,31 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
     // 用索引而不是直接绑枚举：ComboBox 的 SelectedIndex 是 int，
     // 中间隔一层显式映射就不会依赖绑定引擎去做枚举转换（转换失败还不报错）。
 
-    /// <summary>当前天气数据源在列表里的位置。</summary>
-    public int SelectedWeatherProviderIndex
+    /// <summary>
+    /// 当前选中的数据源。
+    /// </summary>
+    /// <remarks>
+    /// 故意绑对象而不是绑索引：绑索引的话，台账列表的顺序一旦和枚举顺序对不上，
+    /// 下拉框就会选到错的那个源，而且不会报任何错。绑对象就不存在这个隐患。
+    /// </remarks>
+    public WeatherProviderInfo? SelectedWeatherProvider
     {
-        get => IndexOf(WeatherProviders, i => i.Kind == Weather.Provider);
+        get => WeatherProviders.FirstOrDefault(i => i.Kind == Weather.Provider);
         set
         {
-            if (value >= 0 && value < WeatherProviders.Count)
+            if (value == null || value.Kind == Weather.Provider)
             {
-                Weather.Provider = WeatherProviders[value].Kind;
-                OnPropertyChanged(nameof(SelectedWeatherProviderDescription));
+                return;
             }
+
+            Weather.Provider = value.Kind;
+            OnPropertyChanged(nameof(SelectedWeatherProviderDescription));
+            OnPropertyChanged(nameof(SelectedProviderRegion));
+            OnPropertyChanged(nameof(SelectedProviderRequiresKey));
+            OnPropertyChanged(nameof(SelectedProviderApiKeyUrl));
+            OnPropertyChanged(nameof(ApiKeyHint));
+            // 换源了，输入框要显示这个源自己的密钥
+            OnPropertyChanged(nameof(ApiKey));
         }
     }
 
@@ -129,19 +173,6 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
                 Weather.Delivery = (AlertDelivery)value;
             }
         }
-    }
-
-    private static int IndexOf<T>(IReadOnlyList<T> list, Func<T, bool> predicate)
-    {
-        for (var i = 0; i < list.Count; i++)
-        {
-            if (predicate(list[i]))
-            {
-                return i;
-            }
-        }
-
-        return 0;
     }
 
     // ---------- 位置 ----------
@@ -256,7 +287,7 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
     /// <summary>设置页被打开时刷新一下下拉框的选中项。</summary>
     public void NotifySelectionRefresh()
     {
-        OnPropertyChanged(nameof(SelectedWeatherProviderIndex));
+        OnPropertyChanged(nameof(SelectedWeatherProvider));
         OnPropertyChanged(nameof(SelectedIconModeIndex));
         OnPropertyChanged(nameof(SelectedDeliveryIndex));
     }

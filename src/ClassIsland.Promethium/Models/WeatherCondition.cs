@@ -27,15 +27,51 @@ public enum WeatherCondition
     Hail
 }
 
-/// <summary>可选的天气数据源。</summary>
+/// <summary>
+/// 可选的天气数据源。
+/// </summary>
+/// <remarks>
+/// 枚举顺序就是设置页下拉框的顺序：先把免密钥的排前面，需要密钥的排后面。
+/// </remarks>
 public enum WeatherProviderKind
 {
-    /// <summary>Open-Meteo，免密钥。</summary>
+    // ---------- 免密钥 ----------
+
+    /// <summary>Open-Meteo，全球，WMO 标准码。</summary>
     OpenMeteo = 0,
 
-    /// <summary>挪威气象研究所，免密钥。</summary>
+    /// <summary>挪威气象研究所，全球，质量高。</summary>
     MetNorway = 1,
 
-    /// <summary>wttr.in，免密钥。</summary>
-    WttrIn = 2
+    /// <summary>wttr.in，全球，聚合服务。</summary>
+    WttrIn = 2,
+
+    /// <summary>7Timer，全球，3 小时粒度预报。</summary>
+    SevenTimer = 3,
+
+    /// <summary>美国国家气象局，免密钥，仅覆盖美国。</summary>
+    Nws = 4,
+
+    // ---------- 需要密钥 ----------
+
+    /// <summary>和风天气，国内可用性好。</summary>
+    QWeather = 5,
+
+    /// <summary>心知天气，国内。</summary>
+    Seniverse = 6,
+
+    /// <summary>OpenWeatherMap。</summary>
+    OpenWeatherMap = 7,
+
+    /// <summary>WeatherAPI.com。</summary>
+    WeatherApi = 8,
+
+    /// <summary>Weatherbit。</summary>
+    Weatherbit = 9,
+
+    /// <summary>Visual Crossing。</summary>
+    VisualCrossing = 10,
+
+    /// <summary>Tomorrow.io。</summary>
+    TomorrowIo = 11
 }

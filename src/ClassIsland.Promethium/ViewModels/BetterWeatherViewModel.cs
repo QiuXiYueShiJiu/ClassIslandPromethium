@@ -206,7 +206,7 @@ public partial class BetterWeatherViewModel : ObservableObject
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e) => ApplyDisplayMode();
 
-    /// <summary>立刻要一次数据，用于刚改完设置的时候。</summary>
+    /// <summary>立刻要一次数据。改配置时监测器会自己重取，这里留给外部主动调用。</summary>
     public Task RefreshAsync() => _monitor.RefreshNowAsync();
 
 
@@ -235,12 +235,6 @@ public partial class BetterWeatherViewModel : ObservableObject
             OnPropertyChanged(nameof(WeatherAlertGlyph));
         }
 
-        // 换地方或换数据源，立刻重新抓一次，别等下一个周期
-        if (e.PropertyName is nameof(WeatherConfig.Latitude) or nameof(WeatherConfig.Longitude)
-            or nameof(WeatherConfig.Provider))
-        {
-            _ = _monitor.RefreshNowAsync();
-        }
     }
 
     /// <summary>按当前配置决定用哪种图标画法。</summary>

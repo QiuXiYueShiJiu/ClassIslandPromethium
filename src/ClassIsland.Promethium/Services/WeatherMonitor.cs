@@ -20,6 +20,9 @@ public partial class WeatherMonitor : ObservableObject, IHostedService
     private readonly PromethiumConfigStore _store;
     private readonly AlertCenter _alertCenter;
 
+    /// <summary>用来把等待中的循环立刻叫醒，用于「刚改完设置马上重取」。</summary>
+    private readonly SemaphoreSlim _wake = new(0, 1);
+
     private CancellationTokenSource? _cancellation;
     private Task? _loop;
 
@@ -42,6 +45,30 @@ public partial class WeatherMonitor : ObservableObject, IHostedService
         _catalog = catalog;
         _store = store;
         _alertCenter = alertCenter;
+
+        // 改位置、换数据源、换密钥都该立刻重取一次，不该让用户干等一个周期。
+        // 挂在监测器上而不是组件上：用户完全可能没往主界面放组件。
+        _store.Weather.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(WeatherConfig.Latitude) or nameof(WeatherConfig.Longitude)
+                or nameof(WeatherConfig.Provider) or nameof(WeatherConfig.ApiKeys))
+            {
+                RequestRefresh();
+            }
+        };
+    }
+
+    /// <summary>叫醒等待中的循环，让它马上再取一次。</summary>
+    public void RequestRefresh()
+    {
+        try
+        {
+            _wake.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // 已经有一次待处理的请求了，不用再加
+        }
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -110,9 +137,13 @@ public partial class WeatherMonitor : ObservableObject, IHostedService
                 continue;
             }
 
+            // 要么等到下一个周期，要么被 RequestRefresh 提前叫醒
             try
             {
-                await Task.Delay(TimeSpan.FromMinutes(minutes), token).ConfigureAwait(false);
+                await Task.WhenAny(
+                    Task.Delay(TimeSpan.FromMinutes(minutes), token),
+                    _wake.WaitAsync(token)).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
             }
             catch (OperationCanceledException)
             {
@@ -130,7 +161,8 @@ public partial class WeatherMonitor : ObservableObject, IHostedService
         try
         {
             snapshot = await provider
-                .QueryAsync(new WeatherQuery(config.Latitude, config.Longitude), token)
+                .QueryAsync(new WeatherQuery(config.Latitude, config.Longitude,
+                    config.GetApiKey(config.Provider)), token)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)

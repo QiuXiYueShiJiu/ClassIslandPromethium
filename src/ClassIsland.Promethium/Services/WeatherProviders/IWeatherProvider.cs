@@ -6,7 +6,8 @@ namespace ClassIsland.Promethium.Services.WeatherProviders;
 /// <summary>一次天气查询要传的东西。</summary>
 /// <param name="Latitude">纬度。</param>
 /// <param name="Longitude">经度。</param>
-public record WeatherQuery(double Latitude, double Longitude);
+/// <param name="ApiKey">需要密钥的数据源用，免密钥的忽略。</param>
+public record WeatherQuery(double Latitude, double Longitude, string ApiKey = "");
 
 /// <summary>一个天气数据源。</summary>
 public interface IWeatherProvider
