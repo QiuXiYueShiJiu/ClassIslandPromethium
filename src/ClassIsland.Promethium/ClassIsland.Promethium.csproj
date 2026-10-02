@@ -7,7 +7,9 @@
         <OutputType>Library</OutputType>
         <AssemblyName>ClassIsland.Promethium</AssemblyName>
         <RootNamespace>ClassIsland.Promethium</RootNamespace>
-        <Version>1.0.0.0</Version>
+        <!-- 程序集版本必须是合法的四段式数字；预览标记放 InformationalVersion -->
+        <Version>0.0.0.1</Version>
+        <InformationalVersion>0.0.0.1A1</InformationalVersion>
         <!-- 依赖一律用宿主已加载的那份，插件包里不能再带一份 -->
         <GenerateDependencyFile>false</GenerateDependencyFile>
         <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>

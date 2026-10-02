@@ -1,4 +1,4 @@
-// Pm钷 v1.0.0.0 —— ClassIsland 综合增强插件
+// Pm钷 —— ClassIsland 综合增强插件
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Promethium.Models;
