@@ -48,7 +48,8 @@ public class MapLocationPickedEventArgs : EventArgs
 /// </remarks>
 public class MapPicker : Control
 {
-    private const int TileSize = 256;
+    /// <summary>一张瓦片的边长，与 TileMath 保持同一份定义。</summary>
+    private const int TileSize = TileMath.TileSize;
     private const int MinZoom = 3;
     private const int MaxZoom = 18;
 
@@ -288,8 +289,8 @@ public class MapPicker : Control
 
         var scale = 1 << _zoom;
         var (centerLatitude, centerLongitude) = Project(_centerLatitude, _centerLongitude);
-        var originX = LongitudeToWorldX(centerLongitude, scale) - size.Width / 2;
-        var originY = LatitudeToWorldY(centerLatitude, scale) - size.Height / 2;
+        var originX = TileMath.LongitudeToWorldX(centerLongitude, scale) - size.Width / 2;
+        var originY = TileMath.LatitudeToWorldY(centerLatitude, scale) - size.Height / 2;
 
         // 经纬网格先画，瓦片盖在上面。这样底图没加载出来时也不是一片空白，
         // 至少能看出地图在动、能对着网格估个大概位置。
@@ -339,10 +340,10 @@ public class MapPicker : Control
     /// <summary>画经纬网格。间隔按当前缩放级别挑，保证屏幕上大约有 5~10 条线。</summary>
     private void DrawGraticule(DrawingContext context, Size size, double originX, double originY, int scale)
     {
-        var left = WorldXToLongitude(originX, scale);
-        var right = WorldXToLongitude(originX + size.Width, scale);
-        var top = WorldYToLatitude(originY, scale);
-        var bottom = WorldYToLatitude(originY + size.Height, scale);
+        var left = TileMath.WorldXToLongitude(originX, scale);
+        var right = TileMath.WorldXToLongitude(originX + size.Width, scale);
+        var top = TileMath.WorldYToLatitude(originY, scale);
+        var bottom = TileMath.WorldYToLatitude(originY + size.Height, scale);
 
         var step = PickGridStep(Math.Max(right - left, top - bottom));
         if (step <= 0)
@@ -352,13 +353,13 @@ public class MapPicker : Control
 
         for (var longitude = Math.Ceiling(left / step) * step; longitude <= right; longitude += step)
         {
-            var x = LongitudeToWorldX(longitude, scale) - originX;
+            var x = TileMath.LongitudeToWorldX(longitude, scale) - originX;
             context.DrawLine(GridPen, new Point(x, 0), new Point(x, size.Height));
         }
 
         for (var latitude = Math.Ceiling(bottom / step) * step; latitude <= top; latitude += step)
         {
-            var y = LatitudeToWorldY(latitude, scale) - originY;
+            var y = TileMath.LatitudeToWorldY(latitude, scale) - originY;
             context.DrawLine(GridPen, new Point(0, y), new Point(size.Width, y));
         }
     }
@@ -380,8 +381,8 @@ public class MapPicker : Control
     private void DrawMarker(DrawingContext context, Size size, double originX, double originY, int scale)
     {
         var (markerLatitude, markerLongitude) = Project(_markerLatitude, _markerLongitude);
-        var x = LongitudeToWorldX(markerLongitude, scale) - originX;
-        var y = LatitudeToWorldY(markerLatitude, scale) - originY;
+        var x = TileMath.LongitudeToWorldX(markerLongitude, scale) - originX;
+        var y = TileMath.LatitudeToWorldY(markerLatitude, scale) - originY;
         if (x < -20 || y < -20 || x > size.Width + 20 || y > size.Height + 20)
         {
             return;
@@ -575,8 +576,8 @@ public class MapPicker : Control
         _dragged = false;
         var scale = 1 << _zoom;
         var (centerLatitude, centerLongitude) = Project(_centerLatitude, _centerLongitude);
-        _dragStartWorldX = LongitudeToWorldX(centerLongitude, scale);
-        _dragStartWorldY = LatitudeToWorldY(centerLatitude, scale);
+        _dragStartWorldX = TileMath.LongitudeToWorldX(centerLongitude, scale);
+        _dragStartWorldY = TileMath.LatitudeToWorldY(centerLatitude, scale);
         e.Pointer.Capture(this);
         e.Handled = true;
     }
@@ -603,8 +604,8 @@ public class MapPicker : Control
         }
 
         var scale = 1 << _zoom;
-        var datumLongitude = WorldXToLongitude(_dragStartWorldX - deltaX, scale);
-        var datumLatitude = WorldYToLatitude(_dragStartWorldY - deltaY, scale);
+        var datumLongitude = TileMath.WorldXToLongitude(_dragStartWorldX - deltaX, scale);
+        var datumLatitude = TileMath.WorldYToLatitude(_dragStartWorldY - deltaY, scale);
         // 平移算出来的是底图基准的坐标，存回配置前要换回 WGS84
         (_centerLatitude, _centerLongitude) = Unproject(datumLatitude, datumLongitude);
         InvalidateVisual();
@@ -632,11 +633,11 @@ public class MapPicker : Control
         var size = Bounds.Size;
         var scale = 1 << _zoom;
         var (centerLatitude, centerLongitude) = Project(_centerLatitude, _centerLongitude);
-        var originX = LongitudeToWorldX(centerLongitude, scale) - size.Width / 2;
-        var originY = LatitudeToWorldY(centerLatitude, scale) - size.Height / 2;
+        var originX = TileMath.LongitudeToWorldX(centerLongitude, scale) - size.Width / 2;
+        var originY = TileMath.LatitudeToWorldY(centerLatitude, scale) - size.Height / 2;
 
-        var datumLongitude = WorldXToLongitude(originX + start.X, scale);
-        var datumLatitude = WorldYToLatitude(originY + start.Y, scale);
+        var datumLongitude = TileMath.WorldXToLongitude(originX + start.X, scale);
+        var datumLatitude = TileMath.WorldYToLatitude(originY + start.Y, scale);
         var (latitude, longitude) = Unproject(datumLatitude, datumLongitude);
 
         _markerLatitude = ClampLatitude(latitude);
@@ -678,19 +679,19 @@ public class MapPicker : Control
 
         var oldScale = 1 << _zoom;
         var (oldCenterLatitude, oldCenterLongitude) = Project(_centerLatitude, _centerLongitude);
-        var oldOriginX = LongitudeToWorldX(oldCenterLongitude, oldScale) - size.Width / 2;
-        var oldOriginY = LatitudeToWorldY(oldCenterLatitude, oldScale) - size.Height / 2;
+        var oldOriginX = TileMath.LongitudeToWorldX(oldCenterLongitude, oldScale) - size.Width / 2;
+        var oldOriginY = TileMath.LatitudeToWorldY(oldCenterLatitude, oldScale) - size.Height / 2;
 
-        var anchorLongitude = WorldXToLongitude(oldOriginX + anchor.X, oldScale);
-        var anchorLatitude = WorldYToLatitude(oldOriginY + anchor.Y, oldScale);
+        var anchorLongitude = TileMath.WorldXToLongitude(oldOriginX + anchor.X, oldScale);
+        var anchorLatitude = TileMath.WorldYToLatitude(oldOriginY + anchor.Y, oldScale);
 
         _zoom = next;
         var newScale = 1 << _zoom;
-        var newAnchorX = LongitudeToWorldX(anchorLongitude, newScale);
-        var newAnchorY = LatitudeToWorldY(anchorLatitude, newScale);
+        var newAnchorX = TileMath.LongitudeToWorldX(anchorLongitude, newScale);
+        var newAnchorY = TileMath.LatitudeToWorldY(anchorLatitude, newScale);
 
-        var datumLongitude = WorldXToLongitude(newAnchorX - anchor.X + size.Width / 2, newScale);
-        var datumLatitude = WorldYToLatitude(newAnchorY - anchor.Y + size.Height / 2, newScale);
+        var datumLongitude = TileMath.WorldXToLongitude(newAnchorX - anchor.X + size.Width / 2, newScale);
+        var datumLatitude = TileMath.WorldYToLatitude(newAnchorY - anchor.Y + size.Height / 2, newScale);
         (_centerLatitude, _centerLongitude) = Unproject(datumLatitude, datumLongitude);
 
         InvalidateVisual();
@@ -698,26 +699,6 @@ public class MapPicker : Control
     }
 
     // ---------------- 坐标换算 ----------------
-
-    private static double LongitudeToWorldX(double longitude, int scale) =>
-        (longitude + 180.0) / 360.0 * TileSize * scale;
-
-    private static double LatitudeToWorldY(double latitude, int scale)
-    {
-        var clamped = Math.Clamp(latitude, -85.05112878, 85.05112878);
-        var radians = clamped * Math.PI / 180.0;
-        return (0.5 - Math.Log((1 + Math.Sin(radians)) / (1 - Math.Sin(radians))) / (4 * Math.PI))
-               * TileSize * scale;
-    }
-
-    private static double WorldXToLongitude(double x, int scale) =>
-        x / (TileSize * (double)scale) * 360.0 - 180.0;
-
-    private static double WorldYToLatitude(double y, int scale)
-    {
-        var n = Math.PI - 2.0 * Math.PI * y / (TileSize * (double)scale);
-        return 180.0 / Math.PI * Math.Atan(Math.Sinh(n));
-    }
 
     private static double ClampLatitude(double latitude) => Math.Clamp(latitude, -85.0, 85.0);
 

@@ -80,6 +80,18 @@ public partial class WeatherConfig : ObservableObject
     [ObservableProperty]
     private string _emojiFontFamily = "Segoe UI Emoji";
 
+    // ---------- 地名服务 ----------
+
+    /// <summary>
+    /// 地名反查用哪一家。默认自动降级：高德（有密钥时）→ Nominatim → Photon → BigDataCloud。
+    /// </summary>
+    [ObservableProperty]
+    private GeocodingProviderKind _geocodingProvider = GeocodingProviderKind.Auto;
+
+    /// <summary>高德密钥。填了它就用高德做地名反查与搜索，国内最好用。</summary>
+    [ObservableProperty]
+    private string _amapGeocodingKey = string.Empty;
+
     // ---------- 地图底图 ----------
 
     /// <summary>

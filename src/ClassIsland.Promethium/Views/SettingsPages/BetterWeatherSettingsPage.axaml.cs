@@ -28,11 +28,12 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
 
     public BetterWeatherSettingsPage(
         PromethiumConfigStore store,
-        NominatimService geocoder,
+        GeocodingService geocoder,
         WeatherProviderCatalog weatherCatalog,
-        IAudioService audioService)
+        IAudioService audioService,
+        AutoConfigurator autoConfigurator)
     {
-        ViewModel = new BetterWeatherSettingsViewModel(store, geocoder, weatherCatalog, audioService);
+        ViewModel = new BetterWeatherSettingsViewModel(store, geocoder, weatherCatalog, audioService, autoConfigurator);
 
         InitializeComponent();
         Root.DataContext = ViewModel;
@@ -45,6 +46,8 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
         // 之前漏了这句，导致底图规则一直是空的，地图上只画得出网格和标记。
         ApplyTileSource();
         Map.TileStatusChanged += (_, _) => UpdateTileStatusText();
+        // 自动配置可能改了底图，改完要重新把候选交给地图控件
+        ViewModel.TileSourceChanged += (_, _) => ApplyTileSource();
 
         CandidateList.SelectionChanged += async (_, _) =>
         {

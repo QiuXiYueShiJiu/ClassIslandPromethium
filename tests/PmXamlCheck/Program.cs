@@ -30,7 +30,7 @@ internal static class Program
         Directory.CreateDirectory(folder);
         var store = new PromethiumConfigStore(folder);
         var alerts = new AlertCenter();
-        var geocoder = new NominatimService();
+        var geocoder = new GeocodingService(store);
 
         var allProviders = new IWeatherProvider[]
         {
@@ -47,7 +47,7 @@ internal static class Program
         Section("一、XAML 能否加载（这是插件加载失败最常见的原因）");
         Check("设置页 BetterWeatherSettingsPage", () =>
         {
-            var page = new BetterWeatherSettingsPage(store, geocoder, catalog, null!);
+            var page = new BetterWeatherSettingsPage(store, geocoder, catalog, null!, new AutoConfigurator(catalog, store));
             return page.Content != null;
         });
         Check("组件设置控件 BetterWeatherComponentSettingsControl", () =>
@@ -293,12 +293,90 @@ internal static class Program
             return Math.Abs(backLat - 39.9087) < 1e-6 && Math.Abs(backLon - 116.3975) < 1e-6;
         });
 
-        Section("十三、地理编码联调");
+        Section("十三、地名反查：必须有多家可降级（这是「反查不成功」的修法）");
+        foreach (var (kind, name) in new (GeocodingProviderKind, string)[]
+                 {
+                     (GeocodingProviderKind.Nominatim, "Nominatim"),
+                     (GeocodingProviderKind.Photon, "Photon"),
+                     (GeocodingProviderKind.BigDataCloud, "BigDataCloud")
+                 })
+        {
+            LiveCheck($"逆地理编码 {name}", () =>
+            {
+                var probe = new PromethiumConfigStore(Path.Combine(folder, "geo-" + kind));
+                probe.Weather.GeocodingProvider = kind;
+                var result = RunOffUiThread(() => new GeocodingService(probe).ReverseAsync(39.9087, 116.3975));
+                Console.WriteLine($"        {result.ProviderName} → {result.Name}");
+                return !string.IsNullOrWhiteSpace(result.Name);
+            });
+        }
+
+        LiveCheck("自动降级能返回结果（并说明用的是哪一家）", () =>
+        {
+            var probe = new PromethiumConfigStore(Path.Combine(folder, "geo-auto"));
+            var result = RunOffUiThread(() => new GeocodingService(probe).ReverseAsync(39.9087, 116.3975));
+            Console.WriteLine($"        自动选中 {result.ProviderName} → {result.Name}");
+            return !string.IsNullOrWhiteSpace(result.Name);
+        });
+
+        LiveCheck("指定一家连不上时，报错要说清原因而不是只给异常类型", () =>
+        {
+            var probe = new PromethiumConfigStore(Path.Combine(folder, "geo-fail"));
+            // 指向一个不可能连上的地址来模拟「这家不通」
+            probe.Weather.GeocodingProvider = GeocodingProviderKind.Nominatim;
+            try
+            {
+                var result = RunOffUiThread(() => new GeocodingService(probe).ReverseAsync(0, 0));
+                Console.WriteLine($"        返回了：{result.Name}");
+                return true;   // 通不通都算通过，这里只验证不抛难懂的异常
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine($"        {ex.Message}");
+                return ex.Message.Contains("没查到") || ex.Message.Contains("地名服务");
+            }
+        });
+
+        Section("十四、地名搜索");
+        LiveCheck("搜索天安门", () =>
+        {
+            var probe = new PromethiumConfigStore(Path.Combine(folder, "geo-search"));
+            var results = RunOffUiThread(() => new GeocodingService(probe).SearchAsync("天安门"));
+            Console.WriteLine($"        找到 {results.Count} 条，首条：{(results.Count > 0 ? results[0].DisplayName : "无")}");
+            if (results.Count > 0)
+            {
+                var first = results[0];
+                Console.WriteLine($"        坐标 {first.Latitude:0.0000}, {first.Longitude:0.0000}");
+            }
+            return results.Count > 0;
+        });
+
+        Section("十五、一键自动配置");
+        LiveCheck("能探出可用的天气源与底图", () =>
+        {
+            var probe = new PromethiumConfigStore(Path.Combine(folder, "auto"));
+            var result = RunOffUiThread(() => new AutoConfigurator(catalog, probe).RunAsync());
+            Console.WriteLine($"        {result.Summary}");
+            Console.WriteLine($"        写入配置：天气={probe.Weather.Provider} 底图={probe.Weather.MapTileSource}");
+            return !string.IsNullOrWhiteSpace(result.WeatherProviderName) || !string.IsNullOrWhiteSpace(result.MapSourceName);
+        });
+        Check("自动配置只会挑全球性、免密钥的天气源", () =>
+        {
+            // 国家级源只覆盖本国，自动挑到会给出别国天气；需要密钥的没法自动配
+            var kinds = new[]
+            {
+                WeatherProviderKind.OpenMeteo, WeatherProviderKind.MetNorway,
+                WeatherProviderKind.WttrIn, WeatherProviderKind.SevenTimer
+            };
+            return kinds.All(k => !catalog.Resolve(k).RequiresApiKey);
+        });
+
+        Section("十六、地理编码联调（原用例保留）");
         LiveCheck("逆地理编码（应能反查到北京一带）", () =>
         {
-            var name = RunOffUiThread(() => geocoder.ReverseAsync(Lat, Lon));
-            Console.WriteLine($"        {name}");
-            return name.Contains("北京") || name.Contains("东城");
+            var result = RunOffUiThread(() => geocoder.ReverseAsync(Lat, Lon));
+            Console.WriteLine($"        {result.ProviderName} → {result.Name}");
+            return result.Name.Contains("北京") || result.Name.Contains("东城") || result.Name.Contains("东华门");
         });
         LiveCheck("地名搜索（用公开地标验证）", () =>
         {

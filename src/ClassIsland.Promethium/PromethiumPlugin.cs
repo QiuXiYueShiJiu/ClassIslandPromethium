@@ -33,7 +33,7 @@ public class PromethiumPlugin : PluginBase
         store.WatchForChanges();
         services.AddSingleton(store);
 
-        services.AddSingleton<NominatimService>();
+        services.AddSingleton<GeocodingService>();
 
         // 天气数据源：五个免密钥 + 七个需要密钥的预设
         services.AddSingleton<OpenMeteoProvider>();
@@ -70,6 +70,9 @@ public class PromethiumPlugin : PluginBase
             sp.GetRequiredService<EstoniaProvider>()
         }));
 
+
+        // 一键自动配置：替用户把能用的数据源和底图试出来
+        services.AddSingleton<AutoConfigurator>();
 
         // 报警状态的单一来源
         services.AddSingleton<AlertCenter>();

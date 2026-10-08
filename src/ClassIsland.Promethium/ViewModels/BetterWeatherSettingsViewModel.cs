@@ -16,7 +16,8 @@ namespace ClassIsland.Promethium.ViewModels;
 /// </remarks>
 public partial class BetterWeatherSettingsViewModel : ObservableObject
 {
-    private readonly NominatimService _geocoder;
+    private readonly GeocodingService _geocoder;
+    private readonly AutoConfigurator _autoConfigurator;
     private readonly WeatherProviderCatalog _weatherCatalog;
     private readonly IAudioService _audioService;
 
@@ -52,13 +53,15 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
 
     public BetterWeatherSettingsViewModel(
         PromethiumConfigStore store,
-        NominatimService geocoder,
+        GeocodingService geocoder,
         WeatherProviderCatalog weatherCatalog,
-        IAudioService audioService)
+        IAudioService audioService,
+        AutoConfigurator autoConfigurator)
     {
         _geocoder = geocoder;
         _weatherCatalog = weatherCatalog;
         _audioService = audioService;
+        _autoConfigurator = autoConfigurator;
 
         Weather = store.Weather;
 
@@ -142,6 +145,61 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
     public string TileDatumHint =>
         "高德、腾讯用 GCJ-02，百度用 BD-09，OpenStreetMap 用 WGS84。" +
         "选错基准标记会偏出几百米。配置里始终保存 WGS84，换底图不会把已选的点挪走。";
+
+    /// <summary>地名服务的索引（枚举顺序与下拉框一致）。</summary>
+    public int SelectedGeocodingProviderIndex
+    {
+        get => (int)Weather.GeocodingProvider;
+        set
+        {
+            if (value >= 0 && value <= (int)GeocodingProviderKind.AMap)
+            {
+                Weather.GeocodingProvider = (GeocodingProviderKind)value;
+            }
+        }
+    }
+
+    /// <summary>地名服务说明。</summary>
+    public string GeocodingHint =>
+        "自动会依次试：高德（填了密钥才试）→ Nominatim → BigDataCloud → Photon。" +
+        "国内 Nominatim 常常连不上，自动降级就是为了这个。";
+
+    /// <summary>底图设置变了，需要界面重新配置地图。</summary>
+    public event EventHandler? TileSourceChanged;
+
+    /// <summary>
+    /// 一键自动配置：把能用的数据源和底图挨个试出来。
+    /// </summary>
+    /// <remarks>
+    /// 这个插件的选项太多，而哪条路通完全取决于用户在哪个网络里，
+    /// 让他自己一个个试太折磨人，所以给一个一键按钮。
+    /// </remarks>
+    [RelayCommand]
+    private async Task AutoConfigureAsync()
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        StatusText = "正在探测可用的天气源与底图，可能要十几秒…";
+        try
+        {
+            var result = await _autoConfigurator.RunAsync();
+            StatusText = result.Summary;
+            NotifySelectionRefresh();
+            TileSourceChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            StatusText = "自动配置失败：" + ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     /// <summary>当前是不是用系统字形。</summary>
     public bool IsGlyphMode => Weather.IconMode == WeatherIconMode.SystemGlyph;
@@ -234,20 +292,18 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
         StatusText = "正在反查地名…";
         try
         {
-            var name = await _geocoder.ReverseAsync(Weather.Latitude, Weather.Longitude);
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                Weather.LocationName = name;
-                StatusText = "已定位到 " + name;
-            }
-            else
-            {
-                StatusText = "这个点附近查不到地名，坐标已经记下了。";
-            }
+            var result = await _geocoder.ReverseAsync(Weather.Latitude, Weather.Longitude);
+            Weather.LocationName = result.Name;
+            StatusText = $"已定位到 {result.Name}（来源：{result.ProviderName}）";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "反查已取消。";
         }
         catch (Exception ex)
         {
-            StatusText = "反查地名失败：" + ex.GetType().Name;
+            // 把每一家的失败原因都带出来，方便判断是网络问题还是某一家自己挂了
+            StatusText = "反查地名失败：" + ex.Message + "。坐标已经记下了，可以直接填地点名。";
         }
         finally
         {
@@ -324,6 +380,7 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(SelectedWeatherProvider));
         OnPropertyChanged(nameof(SelectedMapTileSourceIndex));
+        OnPropertyChanged(nameof(SelectedGeocodingProviderIndex));
         OnPropertyChanged(nameof(IsCustomTileSource));
         OnPropertyChanged(nameof(SelectedTileDatumIndex));
         OnPropertyChanged(nameof(SelectedIconModeIndex));
