@@ -1,6 +1,4 @@
-<div align="center">
-
-<img src="src/ClassIsland.Promethium/icon.png" width="150" alt="Pm钷">
+![Pm钷](https://cdn.jsdelivr.net/gh/QiuXiYueShiJiu/ClassIslandPromethium@main/src/ClassIsland.Promethium/icon.png)
 
 # Pm钷
 
@@ -8,11 +6,9 @@
 
 *着细成器，累土化石。*
 
-</div>
-
 ---
 
-## ⚠️ 预览版 v0.0.0.1A2
+## ⚠️ 预览版 v0.0.0.1A3
 
 这是**第一个公开的预览版**，包含目前已完成的全部功能。
 
@@ -39,6 +35,7 @@
 - **地名反查有多家可降级** —— 高德（有密钥时）→ Nominatim → BigDataCloud → Photon，
   某一家不通会自动换下一家，并告诉你实际用的是哪一家
 - **一键自动配置** —— 自动探测可用的天气源与底图并选好，不用手动一个个试
+- **设置页直接看天气** —— 实时速览当前天气、各要素、数据来源与观测时间，配完立刻能验证
 - **街道级地点名** —— 由 OpenStreetMap 逆地理编码反查回填（实测能到「xx街道xx路」）
 - **15 个数据源** —— 8 个免密钥（Open-Meteo / MET Norway / wttr.in / 7Timer / NWS /
   DWD 德国 / NEA 新加坡 / 爱沙尼亚）+ 7 个自带密钥（和风 / 心知 / OpenWeatherMap /

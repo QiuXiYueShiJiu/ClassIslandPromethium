@@ -1,5 +1,6 @@
 // Pm钷 —— ClassIsland 综合增强插件
 using System.Collections.ObjectModel;
+using System.Globalization;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Promethium.Models;
 using ClassIsland.Promethium.Services;
@@ -18,6 +19,7 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
 {
     private readonly GeocodingService _geocoder;
     private readonly AutoConfigurator _autoConfigurator;
+    private readonly WeatherMonitor _monitor;
     private readonly WeatherProviderCatalog _weatherCatalog;
     private readonly IAudioService _audioService;
 
@@ -56,12 +58,24 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
         GeocodingService geocoder,
         WeatherProviderCatalog weatherCatalog,
         IAudioService audioService,
-        AutoConfigurator autoConfigurator)
+        AutoConfigurator autoConfigurator,
+        WeatherMonitor monitor)
     {
         _geocoder = geocoder;
         _weatherCatalog = weatherCatalog;
         _audioService = audioService;
         _autoConfigurator = autoConfigurator;
+        _monitor = monitor;
+
+        _monitor.SnapshotUpdated += (_, _) => UpdateLiveWeather();
+        _monitor.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(WeatherMonitor.ErrorText) && !string.IsNullOrEmpty(_monitor.ErrorText))
+            {
+                LiveStatusText = _monitor.ErrorText;
+            }
+        };
+        UpdateLiveWeather();
 
         Weather = store.Weather;
 
@@ -183,21 +197,128 @@ public partial class BetterWeatherSettingsViewModel : ObservableObject
         }
 
         IsBusy = true;
-        StatusText = "正在探测可用的天气源与底图，可能要十几秒…";
+        StatusText = "正在探测可用的天气源与底图…";
         try
         {
-            var result = await _autoConfigurator.RunAsync();
+            // 先在这边（UI 线程）把要用到的值读出来，
+            // 探测全程在后台线程跑，不碰任何控件，也不碰配置对象。
+            var latitude = Weather.Latitude;
+            var longitude = Weather.Longitude;
+            var progress = new Progress<string>(text => StatusText = text);
+
+            var result = await Task.Run(
+                () => _autoConfigurator.RunAsync(latitude, longitude, string.Empty, progress));
+
+            // 回到 UI 线程才动配置——配置一变就会触发界面的处理器，
+            // 在后台线程改会让那些处理器从非 UI 线程去碰控件，整个界面卡死。
+            if (result.WeatherProvider.HasValue)
+            {
+                Weather.Provider = result.WeatherProvider.Value;
+            }
+
+            if (result.MapSource.HasValue)
+            {
+                Weather.MapTileSource = result.MapSource.Value;
+            }
+
             StatusText = result.Summary;
             NotifySelectionRefresh();
             TileSourceChanged?.Invoke(this, EventArgs.Empty);
+
+            // 配好之后立刻按新配置取一次，用户马上能看到结果
+            await _monitor.RefreshNowAsync();
         }
         catch (Exception ex)
         {
-            StatusText = "自动配置失败：" + ex.Message;
+            StatusText = "自动配置失败：" + ex.GetType().Name + "：" + ex.Message;
         }
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    // ---------- 页面上的实时天气速览 ----------
+
+    /// <summary>当前有没有拿到天气数据。</summary>
+    [ObservableProperty]
+    private bool _hasLiveWeather;
+
+    /// <summary>天气现象。</summary>
+    [ObservableProperty]
+    private string _liveConditionText = "还没有数据";
+
+    /// <summary>气温。</summary>
+    [ObservableProperty]
+    private string _liveTemperatureText = "--°";
+
+    /// <summary>其余要素。</summary>
+    [ObservableProperty]
+    private string _liveDetailText = string.Empty;
+
+    /// <summary>数据来源与观测时间。</summary>
+    [ObservableProperty]
+    private string _liveSourceText = string.Empty;
+
+    /// <summary>速览区的状态提示（取数失败时用）。</summary>
+    [ObservableProperty]
+    private string _liveStatusText = string.Empty;
+
+    /// <summary>把监测器最新那份数据画到速览区。</summary>
+    private void UpdateLiveWeather()
+    {
+        var snapshot = _monitor.Snapshot;
+        if (snapshot == null)
+        {
+            HasLiveWeather = false;
+            LiveConditionText = "还没有数据";
+            LiveTemperatureText = "--°";
+            LiveDetailText = "点下面的「立即取一次」试试。";
+            LiveSourceText = string.Empty;
+            return;
+        }
+
+        HasLiveWeather = true;
+        LiveConditionText = WeatherText.Describe(snapshot.Condition);
+        LiveTemperatureText = snapshot.Temperature.ToString("0.#", CultureInfo.InvariantCulture) + "°";
+        LiveDetailText = string.Join(" · ", new[]
+        {
+            snapshot.Humidity > 0 ? "湿度 " + snapshot.Humidity.ToString("0.#", CultureInfo.InvariantCulture) + "%" : null,
+            snapshot.WindDirection >= 0
+                ? WeatherText.Direction(snapshot.WindDirection) + "风 " + snapshot.WindSpeed.ToString("0.#", CultureInfo.InvariantCulture) + " km/h"
+                : "风 " + snapshot.WindSpeed.ToString("0.#", CultureInfo.InvariantCulture) + " km/h",
+            snapshot.HasDailyRange
+                ? "今日 " + snapshot.TodayMin.ToString("0.#", CultureInfo.InvariantCulture)
+                  + "~" + snapshot.TodayMax.ToString("0.#", CultureInfo.InvariantCulture) + "°"
+                : null,
+            "体感 " + snapshot.FeelsLike.ToString("0.#", CultureInfo.InvariantCulture) + "°"
+        }.Where(x => x != null));
+
+        LiveSourceText = $"{snapshot.ProviderName} · 观测时间 {snapshot.ObservedAt:HH:mm}";
+        LiveStatusText = string.Empty;
+    }
+
+    /// <summary>立刻按当前配置取一次天气，让用户在设置页就能确认通不通。</summary>
+    [RelayCommand]
+    private async Task RefreshLiveWeatherAsync()
+    {
+        LiveStatusText = "正在取数…";
+        try
+        {
+            await _monitor.RefreshNowAsync();
+            UpdateLiveWeather();
+            if (HasLiveWeather)
+            {
+                LiveStatusText = "取数成功。";
+            }
+            else if (!string.IsNullOrEmpty(_monitor.ErrorText))
+            {
+                LiveStatusText = _monitor.ErrorText;
+            }
+        }
+        catch (Exception ex)
+        {
+            LiveStatusText = "取数失败：" + ex.GetType().Name;
         }
     }
 

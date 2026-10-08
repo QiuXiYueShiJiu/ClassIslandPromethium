@@ -47,7 +47,7 @@ internal static class Program
         Section("一、XAML 能否加载（这是插件加载失败最常见的原因）");
         Check("设置页 BetterWeatherSettingsPage", () =>
         {
-            var page = new BetterWeatherSettingsPage(store, geocoder, catalog, null!, new AutoConfigurator(catalog, store));
+            var page = new BetterWeatherSettingsPage(store, geocoder, catalog, null!, new AutoConfigurator(catalog), monitor);
             return page.Content != null;
         });
         Check("组件设置控件 BetterWeatherComponentSettingsControl", () =>
@@ -354,11 +354,29 @@ internal static class Program
         Section("十五、一键自动配置");
         LiveCheck("能探出可用的天气源与底图", () =>
         {
-            var probe = new PromethiumConfigStore(Path.Combine(folder, "auto"));
-            var result = RunOffUiThread(() => new AutoConfigurator(catalog, probe).RunAsync());
+            var result = RunOffUiThread(() => new AutoConfigurator(catalog).RunAsync(Lat, Lon));
             Console.WriteLine($"        {result.Summary}");
-            Console.WriteLine($"        写入配置：天气={probe.Weather.Provider} 底图={probe.Weather.MapTileSource}");
-            return !string.IsNullOrWhiteSpace(result.WeatherProviderName) || !string.IsNullOrWhiteSpace(result.MapSourceName);
+            Console.WriteLine($"        探到：天气={result.WeatherProvider} 底图={result.MapSource}");
+            return result.WeatherProvider.HasValue || result.MapSource.HasValue;
+        });
+        Check("自动探测全程不改配置（回归：曾经在后台线程改配置导致界面卡死）", () =>
+        {
+            // 这个用例是那次卡死的守门人。AutoConfigurator 只负责探测并返回结果，
+            // 写配置必须由界面在 UI 线程上做——所以它根本不该接受配置对象。
+            var probe = new PromethiumConfigStore(Path.Combine(folder, "auto-nomutate"));
+            probe.Weather.Provider = WeatherProviderKind.QWeather;
+            probe.Weather.MapTileSource = MapTileSource.None;
+            RunOffUiThread(() => new AutoConfigurator(catalog).RunAsync(Lat, Lon));
+            return probe.Weather.Provider == WeatherProviderKind.QWeather
+                   && probe.Weather.MapTileSource == MapTileSource.None;
+        });
+        LiveCheck("探测必须有上限，不能无限等（每个源 6 秒超时）", () =>
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            RunOffUiThread(() => new AutoConfigurator(catalog).RunAsync(Lat, Lon));
+            watch.Stop();
+            Console.WriteLine($"        耗时 {watch.Elapsed.TotalSeconds:0.0} 秒");
+            return watch.Elapsed.TotalSeconds < 60;
         });
         Check("自动配置只会挑全球性、免密钥的天气源", () =>
         {
@@ -371,7 +389,17 @@ internal static class Program
             return kinds.All(k => !catalog.Resolve(k).RequiresApiKey);
         });
 
-        Section("十六、地理编码联调（原用例保留）");
+        Section("十六、设置页的天气速览");
+        Check("还没取到数据时显示占位而不是 0（0 会被当成真数据）", () =>
+        {
+            var settingsVm = new ClassIsland.Promethium.ViewModels.BetterWeatherSettingsViewModel(
+                store, geocoder, catalog, null!, new AutoConfigurator(catalog), monitor);
+            return !settingsVm.HasLiveWeather
+                   && settingsVm.LiveTemperatureText.Contains("--")
+                   && !string.IsNullOrEmpty(settingsVm.LiveConditionText);
+        });
+
+        Section("十七、地理编码联调（原用例保留）");
         LiveCheck("逆地理编码（应能反查到北京一带）", () =>
         {
             var result = RunOffUiThread(() => geocoder.ReverseAsync(Lat, Lon));

@@ -1,6 +1,7 @@
 // Pm钷 —— ClassIsland 综合增强插件
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using ClassIsland.Core.Abstractions.Controls;
@@ -31,9 +32,10 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
         GeocodingService geocoder,
         WeatherProviderCatalog weatherCatalog,
         IAudioService audioService,
-        AutoConfigurator autoConfigurator)
+        AutoConfigurator autoConfigurator,
+        WeatherMonitor monitor)
     {
-        ViewModel = new BetterWeatherSettingsViewModel(store, geocoder, weatherCatalog, audioService, autoConfigurator);
+        ViewModel = new BetterWeatherSettingsViewModel(store, geocoder, weatherCatalog, audioService, autoConfigurator, monitor);
 
         InitializeComponent();
         Root.DataContext = ViewModel;
@@ -63,15 +65,43 @@ public partial class BetterWeatherSettingsPage : SettingsPageBase
         ViewModel.Weather.PropertyChanged += OnWeatherConfigChanged;
     }
 
+    /// <summary>
+    /// 配置变了就同步界面。
+    /// </summary>
+    /// <remarks>
+    /// <b>这里必须 marshal 回 UI 线程。</b>配置对象可能被后台任务改动
+    /// （比如监测器、或者将来别的异步流程），而 Avalonia 控件只能从 UI 线程碰。
+    /// 之前就是因为在后台线程上直接 InvalidateVisual 导致点「自动配置」后界面卡死。
+    /// </remarks>
     private void OnWeatherConfigChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(WeatherConfig.Latitude) or nameof(WeatherConfig.Longitude))
+        var touchesMap = e.PropertyName is nameof(WeatherConfig.Latitude) or nameof(WeatherConfig.Longitude);
+        var touchesTiles = e.PropertyName is nameof(WeatherConfig.MapTileSource) or nameof(WeatherConfig.CustomTileUrl)
+            or nameof(WeatherConfig.CustomTileDatum) or nameof(WeatherConfig.CustomTileAttribution);
+
+        if (!touchesMap && !touchesTiles)
+        {
+            return;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            SyncMap(touchesMap, touchesTiles);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => SyncMap(touchesMap, touchesTiles));
+        }
+    }
+
+    private void SyncMap(bool touchesMap, bool touchesTiles)
+    {
+        if (touchesMap)
         {
             Map.SetView(ViewModel.Weather.Latitude, ViewModel.Weather.Longitude);
         }
 
-        if (e.PropertyName is nameof(WeatherConfig.MapTileSource) or nameof(WeatherConfig.CustomTileUrl)
-            or nameof(WeatherConfig.CustomTileDatum) or nameof(WeatherConfig.CustomTileAttribution))
+        if (touchesTiles)
         {
             ApplyTileSource();
         }
